@@ -1,0 +1,3 @@
+# Cython ``` pip install cython ```
+# Eigency: ```pip install eigency ```
+# SNOPT [Optional](https://ccom.ucsd.edu/~optimizers/solvers/snopt/)
