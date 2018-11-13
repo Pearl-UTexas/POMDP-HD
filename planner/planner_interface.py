@@ -1,4 +1,4 @@
-#!/usr/bin/env python 2.7
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
 import copy
@@ -7,6 +7,10 @@ from planner_core.src.blqr import *
 
 
 class planner_interface:
+    """
+    Class providing a high-level interface to interact with POMDP-HD planner 
+    """
+
     def __init__(self, x, mu, goal):
         ''' Object initializations '''
         self.planner = pomdp_hd()

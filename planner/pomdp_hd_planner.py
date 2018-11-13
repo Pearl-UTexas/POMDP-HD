@@ -1,20 +1,22 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import sys, time
-import numpy as numpy
 import copy
-from multiprocessing import Process, Pipe
+import sys
+import time
 from contextlib import contextmanager
 from itertools import izip, permutations
+from multiprocessing import Process, Pipe
+import numpy as numpy
+import scipy.interpolate
+from scipy.optimize import differential_evolution
 
 from planner_core.cython.beliefEvolution import *
 from planner_core.src.blqr import *
 from planner_core.src.py_utils import *
 
-# Global Optimization
-import scipy.interpolate
-from scipy.optimize import differential_evolution
 
+## Global Parameters on which optimizer to use
 USE_SNOPT = True
 
 if USE_SNOPT:
@@ -22,24 +24,35 @@ if USE_SNOPT:
     from planner_core.src.trajOpt_snopt import *
 else:
     from planner_core.src.trajOpt import *
-# max_cost_differences = []
 
-''' Parallel Processing '''
+
+
+"""
+Parallel Processing
+"""
 @contextmanager # For Making it to work with Python 2.7
 def terminating(thing):
+    """
+    Function to handle termination condition for Parllel threads
+    """
     try:
         yield thing
     finally:
         thing.terminate()
 
-# For making it to work on classes
 def spawn(f):
+    """
+    High level funciton to use parallel processing with classes
+    """
     def fun(pipe,x):
         pipe.send(f(x))
         pipe.close()
     return fun
 
 def parmap(f,X):
+    """
+    Function to map functions to parallel threads
+    """
     pipe=[Pipe() for x in X]
     proc=[Process(target=spawn(f),args=(c,x)) for x,(p,c) in izip(X,pipe)]
     [p.start() for p in proc]
@@ -47,15 +60,42 @@ def parmap(f,X):
     return [p.recv() for (p,c) in pipe]
 
 
-
-## Data structure to handle hybrid belief
+""" Custom Data Structures """
 class hybrid_belief(object):
+    """
+    Data structure to represent hybrid belief
+    
+    Fields:
+        mu  : Numpy Array
+            Mean of Gaussian distribution over continuous state
+        cov : Numpy Matrix
+            Covariance of Gaussian distribution over continuous state
+        wts : Numpy Array/List
+            Probability vector over discrete states 
+    """
     def __init__(self, mu, cov, wts):
         self.mu = mu
         self.cov = cov
         self.wts = wts
 
+
 class data_info(object):
+    """
+    Data structure to record values associated with a High-level plan or rollout
+    
+    Fields:
+        rollout : Numpy Array/List
+            High-Level Plan
+        cost : double
+            Cost in following this high-level plan
+        plan : Numpy Array of Numpy Arrays
+            Continuous state plan corresponding to this rollout
+        final_wts : Numpy Array/List
+            Proabibilty vector over discrete states at the end of this roolout
+        cs_goal_path: list of Numpy arrays
+            Intermediate goals to go to in continuous states
+        """
+
     def __init__(self, rollout, cost, plan, final_wts, cs_goal_path):
         self.rollout = rollout
         self.cost = cost
@@ -64,10 +104,22 @@ class data_info(object):
         self.cs_goal_path = cs_goal_path
 
 
+""" Helper Functions """
 def stichCSPath(planned_path):
+    """
+    Function to stich togther multiple continuous state plans into a single plan
+
+    Input
+    =====
+    planned_path : List/numpy Array
+        List of individual conitnuous state plans
+
+    Output
+    ======
+    complete_path : Numpy Array of Arrays
+        Single stiched path
+    """
     complete_path = planned_path[0]
-    # print "complete_path =", complete_path
-    # print "shape of planned plan = ", np.shape(planned_path)
 
     for i, plan in enumerate(planned_path[1:]):
             complete_path[0] = np.append(complete_path[0], plan[0], axis=1)
