@@ -32,10 +32,12 @@ cd planner/
 python run_main.py
 ```
 
-
 ### Define a new problem
 TODO
 
+### Dependencies
+1. snopt-python. Clone from our fork at ```https://github.com/jainajinkya/snopt-python/tree/snopt-only```
 
 ### Contact
 In case of any questions, please feel free to contact at *ajinkya@utexas.edu*.
+

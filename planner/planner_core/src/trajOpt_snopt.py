@@ -17,6 +17,8 @@ from numpy import linalg as la
 from py_utils import *
 
 class trajectoryOptimization:
+    MAX_TRIES = 5
+
     def __init__ (self, nState, nSegments, nInput, nOutput, nModel, Q, R, Q_f, labda, sysDynamics):
         # Planning Parameters
         self.nState = nState
@@ -187,32 +189,38 @@ class trajectoryOptimization:
         iw      = [None]*5000
         rw      = [None]*5000
 
+        for trial in range(self.MAX_TRIES):
+            res = snopta(self.snopt_objFun,n,nF,x0=X0, xlow=Xlow,xupp=Xupp, Flow=Flow,Fupp=Fupp, ObjRow=ObjRow, F=F_init, Fstate=Fstate_init, name='ds_goal', start=Start, options=options)
 
-        res = snopta(self.snopt_objFun,n,nF,x0=X0, xlow=Xlow,xupp=Xupp, Flow=Flow,Fupp=Fupp, ObjRow=ObjRow, F=F_init, Fstate=Fstate_init, name='ds_goal', start=Start, options=options)
+            if res is None:
+                print "Failed to find solution for optimization after ", trial+1, " tries. Retrying!"
+                continue
+            else:
+                print "SNOPT Result =", np.round(res.x, 4)
+                xfinal = res.x
 
-        print "SNOPT Result =", np.round(res.x, 4)
+                mu_new = np.reshape(xfinal[:self.nState*self.nSegments],(self.nState,self.nSegments),'F')
+                s_new = np.reshape(xfinal[self.nState*self.nSegments:(self.nState + self.len_s)*self.nSegments], (self.len_s, self.nSegments),'F')
+                u_new = np.reshape(xfinal[(self.nState+self.len_s)*self.nSegments:(self.nState+self.len_s + self.nInput)*self.nSegments],(self.nInput,self.nSegments),'F')
 
-        xfinal = res.x
+                final_wts = np.ndarray(self.nModel)
+                covFinal = deepcopy(covInit)
+                covFinal[self.id1] = s_new[:,-1]
+                self.sysDynamics.fastWtsMapped(mu_new[:,-1], covFinal, final_wts)
 
-        mu_new = np.reshape(xfinal[:self.nState*self.nSegments],(self.nState,self.nSegments),'F')
-        s_new = np.reshape(xfinal[self.nState*self.nSegments:(self.nState + self.len_s)*self.nSegments], (self.len_s, self.nSegments),'F')
-        u_new = np.reshape(xfinal[(self.nState+self.len_s)*self.nSegments:(self.nState+self.len_s + self.nInput)*self.nSegments],(self.nInput,self.nSegments),'F')
+                # if self.do_verbose:
+                print '*****************\nSet Goal: ', goal
+                print 'Plan Time Horizon: ', tFinal
+                print 'Planning for segments: ', self.nSegments
+                print 'Each Segment Length: ', self.delta
+                print "Generated Plan: \n", np.round(mu_new.T, 3) #[-1,:]
+                print "s_new: ", np.round(s_new.T, 3)
+                print "u_new: ", np.round(u_new.T, 3)
+                print "final_wts: ", final_wts
+                print "Final Cost = ", res.F[0]
+                print "********************\n"
 
-        final_wts = np.ndarray(self.nModel)
-        covFinal = deepcopy(covInit)
-        covFinal[self.id1] = s_new[:,-1]
-        self.sysDynamics.fastWtsMapped(mu_new[:,-1], covFinal, final_wts)
+                return res.F[0], mu_new, s_new, u_new, final_wts
 
-        # if self.do_verbose:
-        print '*****************\nSet Goal: ', goal
-        print 'Plan Time Horizon: ', tFinal
-        print 'Planning for segments: ', self.nSegments
-        print 'Each Segment Length: ', self.delta
-        print "Generated Plan: \n", np.round(mu_new.T, 3) #[-1,:]
-        print "s_new: ", np.round(s_new.T, 3)
-        print "u_new: ", np.round(u_new.T, 3)
-        print "final_wts: ", final_wts
-        print "Final Cost = ", res.F[0]
-        print "********************\n"
-
-        return res.F[0], mu_new, s_new, u_new, final_wts
+        print "XXXXXXXXXXX FAILED TO OPTIMIZE! XXXXXXXXXXXXXXXXXXX \n Returning intial plan"
+        return np.inf, np.tile(muInit, (self.nSegments, 1)).T, np.tile(covInit[self.id1], (self.nSegments, 1)).T, np.array([0.]*self.nInput*self.nSegments), wtsInit*1.
