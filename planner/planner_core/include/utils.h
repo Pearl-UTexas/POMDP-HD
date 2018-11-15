@@ -1,3 +1,6 @@
+#ifndef UTILS_H_
+#define UTILS_H_
+
 #include <map>
 #include <vector>
 #include <iostream>
@@ -41,3 +44,5 @@ void nearestPD(Eigen::MatrixXd&, Eigen::MatrixXd&);
 double eps(float);
 
 } // end namespace
+
+#endif // UTILS_H_

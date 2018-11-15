@@ -40,12 +40,6 @@ cdef class BeliefEvolution:
         def __set__(self, int var):
             self.cobj.nModel = var
 
-    # property W:
-    #     def __get__(self):
-    #         return ndarray(self.cobj.W)
-    #     def __set__(self, np.ndarray W):
-    #         self.cobj.W = Map[MatrixXd](W)
-
     property wts:
         def __get__(self):
             return ndarray(self.cobj.wts)
@@ -58,32 +52,23 @@ cdef class BeliefEvolution:
         def __set__(self, int var):
             self.cobj.nSamples = var 
 
+    property goal_threshold:
+        def __get__(self):
+            return self.cobj.goal_threshold
+        def __set__(self, double var):
+            self.cobj.goal_threshold = var 
+    
     property ds_res_loop_count_:
         def __get__(self):
             return self.cobj.ds_res_loop_count_
         def __set__(self, int var):
             self.cobj.ds_res_loop_count_ = var 
 
-    #property goal:
-    #    def __get__(self):
-    #        return ndarray(self.cobj.goal)
-    #    def __set__(self, np.ndarray val):
-    #        self.cobj.goal = Map[VectorXd](val)
-
     def fastWtsMapped(self, np.ndarray mu, np.ndarray cov, np.ndarray wts_new):
         return self.cobj.fastWtsMapped(Map[VectorXd](mu), Map[MatrixXd] (cov), Map[VectorXd](wts_new))
 
-    # def simpleWts(np.ndarray mu, np.ndarray cov, np.ndarray wts_new):
-    #     return self.cobj.simpleWts(Map[VectorXd](mu), Map[MatrixXd] cov, Map[VectorXd](wts_new))
-
-    # def setDynamics(self, Dynamics dyna):
-    #     self.cobj.dyna = dyna.thisptr
-
-    def setGC(self, np.ndarray goal):
-        return self.cobj.setGC(Map[VectorXd](goal))
-
-    # def activeModel(self, np.ndarray x, int idx):
-    #     return self.cobj.activeModel(Map[VectorXd](x), int(idx))
+    def setGoalGC(self, np.ndarray goal):
+        return self.cobj.setGoalGC(Map[VectorXd](goal))
 
     def getMatrices(self, int idx, np.ndarray A, np.ndarray B, np.ndarray C, np.ndarray V, np.ndarray W):
         return self.cobj.getMatrices(int(idx), Map[MatrixXd](A), Map[MatrixXd](B), Map[MatrixXd](C), Map[MatrixXd](V), Map[MatrixXd](W))
@@ -98,7 +83,6 @@ cdef class BeliefEvolution:
         self.cobj.observationUpdate(Map[VectorXd](z), Map[VectorXd](mu_new), Map[MatrixXd](cov_new), Map[VectorXd](wts_new), int(ds_new))
         return ds_new
 
-
     def beliefUpdatePlanning(self, np.ndarray mu, np.ndarray cov, np.ndarray u, np.ndarray mu_new, np.ndarray cov_new, np.ndarray wts_new, int ds_new):
         self.cobj.beliefUpdatePlanning(Map[VectorXd](mu), Map[MatrixXd](cov), Map[VectorXd](u), Map[VectorXd](mu_new), Map[MatrixXd](cov_new), Map[VectorXd](wts_new), int(ds_new))
         return ds_new
@@ -111,6 +95,5 @@ cdef class BeliefEvolution:
         self.cobj.predictionStochastic(Map[VectorXd](mu), Map[MatrixXd](cov), Map[VectorXd](u), Map[VectorXd](mu_new), Map[MatrixXd](cov_new), Map[VectorXd](wts_new), int(ds_new))
         return ds_new
 
-
-    def simulate_oneStep(self, np.ndarray x, np.ndarray u, np.ndarray x_new, np.ndarray z_new):
-        return  self.cobj.simulate_oneStep(Map[VectorXd](x),Map[VectorXd](u),Map[VectorXd](x_new), Map[VectorXd](z_new))
+    def simulateOneStep(self, np.ndarray x, np.ndarray u, np.ndarray x_new, np.ndarray z_new):
+        return  self.cobj.simulateOneStep(Map[VectorXd](x),Map[VectorXd](u),Map[VectorXd](x_new), Map[VectorXd](z_new))

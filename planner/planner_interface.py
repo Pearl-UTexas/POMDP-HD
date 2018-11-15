@@ -25,7 +25,7 @@ class planner_interface:
         # Number fo Samples to calculate discerte belief from continous beleif
         self.planner.dyna.nSamples = 50.
         # Change the loop count in beleif propagation int value
-        self.planner.dyna.ds_res_loop_count_ = 100
+        self.planner.dyna.ds_res_loop_count_ = 1
 
         ''' Initialization '''
         self.id1 = self.planner.opt.id1
@@ -42,7 +42,8 @@ class planner_interface:
         self.planner.belief = hybrid_belief(
             self.mu_actual, self.cov_actual, self.wts_actual)
         self.planner.goal_cs = copy.copy(self.goal)
-        self.planner.dyna.setGC(copy.copy(self.goal))  # Setting GC
+        self.planner.dyna.setGoalGC(copy.copy(self.goal))  # Setting GC
+
 
         # Matrices for holding dynamics
         self.A = np.ndarray((self.planner.nState, self.planner.nState))
@@ -126,9 +127,10 @@ class planner_interface:
 
         # Next point on the Trajectory
         z = np.ndarray(self.planner.nState)
-        self.planner.dyna.simulate_oneStep(
-            self.x_actual, u_local, self.xNew, z)
 
+        self.planner.dyna.simulateOneStep(
+            self.x_actual, u_local, self.xNew, z)
+        print "Simulated_onestep"
         return self.xNew, z
 
     def update_belief(self, z):

@@ -147,6 +147,8 @@ class pomdp_hd:
         self.nInput = self.dyna.nInput
         self.nOutput = self.dyna.nOutput
         self.nModel = self.dyna.nModel
+        
+        raw_input('Did you set up domain for global optimization?\n Press enter to continue!')
         self.domain = [(-50., 100.), (-50.0, 100.0)]
 
         # Hybrid Belief

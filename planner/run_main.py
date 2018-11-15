@@ -11,24 +11,26 @@ if __name__ == "__main__":
     start_time = time.time()
 
     ## Initial Belief
-    mu = np.array([50.0, 50.0])
+
+    mu = np.array([50.0, 10.0])
 
     ## Actual System Start
-    x = np.array([35., 20.])
-
+    x = np.array([35., 30.])
+  
     ## Planner goal
     goal = np.array([0.0, 0.])
 
     ## Initialize Planner
     planner = planner_interface(x, mu, goal)
     planner.do_parallelize = True
-    planner.do_verbose = False
+    planner.do_verbose = True
 
     ## Tolerance on replanning
-    replanning_threshld = 5.0 
+    replanning_threshld = 10.
     
     ## Exit criterion
-    max_final_error = 1.0 
+    max_final_error = 2.
+    planner.planner.goal_threshold = max_final_error
 
     ## Data Collection for Post-Processing and Plots
     traj = [planner.mu_actual]
@@ -72,8 +74,8 @@ if __name__ == "__main__":
                 break
 
         print "\n####################"
-        print "muFinal = ", np.round(mu, 3)
-        print "xFinal = ", np.round(x, 3)
+        print "mu = ", np.round(mu, 3)
+        print "x = ", np.round(x, 3)
         print "#####################\n"
 
     tActual = np.round((time.time() - start_time), 3)
@@ -105,12 +107,12 @@ if __name__ == "__main__":
     x1 = -21.0
     y1 = -21.0
     x2 = planner.planner.domain[0][1]
-    y2 = -21.0
+    y2 = -21.
     plt.plot([x1, x2], [y1, y2], color='k', linestyle='-', linewidth=15)
 
-    x1 = -21.0
-    y1 = -21.0
-    x2 = -21.0
+    x1 = -21.
+    y1 = -21.
+    x2 = -21.
     y2 = planner.planner.domain[1][1]
     plt.plot([x1, x2], [y1, y2], color='k', linestyle='-', linewidth=10)
 
@@ -136,8 +138,8 @@ if __name__ == "__main__":
     plt.plot(x_vec[0], y_vec[0], 'ko', x_vec[-1], y_vec[-1], 'gs' , ms=10.0, mew=2.0)
     plt.plot(x_vec_true[0], y_vec_true[0], 'ko', x_vec_true[-1], y_vec_true[-1], 'gs' , ms=10.0, mew=2.0)
 
-    plt.xlim([-20.0,100.])
-    plt.ylim([-20.0, 100.0])
+    plt.xlim([-21.,100.])
+    plt.ylim([-21., 100.0])
     # plt.axis('equal')
     fig.show()
     
