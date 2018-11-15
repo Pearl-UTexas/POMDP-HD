@@ -167,9 +167,17 @@ class trajectoryOptimization:
 
         self.X0 = deepcopy(X0)
 
-        Xlow    = np.array([-150.0]*len(X0[:self.nState*self.nSegments]) + [0.]*len(X0[self.nState*self.nSegments:(self.nState+self.len_s)*self.nSegments]) + [-100.0]*len(X0[(self.nState+self.len_s)*self.nSegments:(self.nState+self.len_s + self.nInput)*self.nSegments]))
+        Xlow    = np.array([-150.0]*len(X0[:self.nState*self.nSegments]) + 
+                  [0.]*len(X0[self.nState*self.nSegments:
+                      (self.nState+self.len_s)*self.nSegments]) + 
+                  [-100.0]*len(X0[(self.nState+self.len_s)*self.nSegments:
+                      (self.nState+self.len_s + self.nInput)*self.nSegments]))
 
-        Xupp    = np.array([150.0]*len(X0[:self.nState*self.nSegments]) + [1500.]*len(X0[self.nState*self.nSegments:(self.nState+self.len_s)*self.nSegments]) + [100.0]*len(X0[(self.nState+self.len_s)*self.nSegments:(self.nState+self.len_s + self.nInput)*self.nSegments]))
+        Xupp    = np.array([150.0]*len(X0[:self.nState*self.nSegments]) +
+                            [1500.]*len(X0[self.nState*self.nSegments:
+                            (self.nState+self.len_s)*self.nSegments]) +
+                        [100.0]*len(X0[(self.nState+self.len_s)*self.nSegments:
+                        (self.nState+self.len_s + self.nInput)*self.nSegments]))
 
         n       = len(X0)
         nF      = int(1 + len(X0))
@@ -223,4 +231,4 @@ class trajectoryOptimization:
                 return res.F[0], mu_new, s_new, u_new, final_wts
 
         print "XXXXXXXXXXX FAILED TO OPTIMIZE! XXXXXXXXXXXXXXXXXXX \n Returning intial plan"
-        return np.inf, np.tile(muInit, (self.nSegments, 1)).T, np.tile(covInit[self.id1], (self.nSegments, 1)).T, np.array([0.]*self.nInput*self.nSegments), wtsInit*1.
+        return np.inf, np.tile(muInit, (self.nSegments, 1)).T, np.tile(covInit[self.id1], (self.nSegments, 1)).T, np.tile([0.]*self.nInput, (self.nSegments, 1)).T, wtsInit*1.

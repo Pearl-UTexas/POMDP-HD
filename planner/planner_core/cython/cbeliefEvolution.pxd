@@ -14,22 +14,11 @@ cdef extern from "../include/belief_evolution.h":
         int nOutput
         int nModel
         int nSamples
+        double goal_threshold
         int ds_res_loop_count_
 
-
-        # Map[MatrixXd] W;
         Map[VectorXd] wts;
-        # Map[VectorXd] goal;
-
-        # Dynamics* dyna;
-        # Simulator* simulator;
-
-        # void fastWts(Map[VectorXd] &, Map[MatrixXd] &, Map[VectorXd] &);
-        # void simpleWts(Map[VectorXd] &, Map[MatrixXd] &, int, Map[VectorXd] &);
-        # void setDynamics(Dynamics*)
-
-        void setGC(Map[VectorXd]&)
-        # void activeModel(Map[VectorXd]&, int&)
+        void setGoalGC(Map[VectorXd]&)
         void getMatrices(int&, Map[MatrixXd]&, Map[MatrixXd]&, Map[MatrixXd]&, Map[MatrixXd]&, Map[MatrixXd]&)
         void nearestPDMapped(Map[MatrixXd]&, Map[MatrixXd]&)
         bool isPDMapped(Map[MatrixXd]&)
@@ -38,5 +27,5 @@ cdef extern from "../include/belief_evolution.h":
         int beliefUpdatePlanning(Map[VectorXd] &, Map[MatrixXd] &, Map[VectorXd] &, Map[VectorXd] &, Map[MatrixXd] &, Map[VectorXd] &, int&)
         int predictionStochastic(Map[VectorXd] &, Map[MatrixXd] &, Map[VectorXd] &, Map[VectorXd] &, Map[MatrixXd] &, Map[VectorXd] &, int&)
         int predictionDeterministic(Map[VectorXd] &, Map[MatrixXd] &, Map[VectorXd] &, Map[VectorXd] &, Map[MatrixXd] &, Map[VectorXd] &, int&)
-        void simulate_oneStep(Map[VectorXd] &, Map[VectorXd] &, Map[VectorXd] &, Map[VectorXd] &)
+        void simulateOneStep(Map[VectorXd] &, Map[VectorXd] &, Map[VectorXd] &, Map[VectorXd] &)
 
