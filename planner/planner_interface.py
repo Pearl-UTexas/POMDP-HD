@@ -44,6 +44,7 @@ class planner_interface:
         self.planner.goal_cs = copy.copy(self.goal)
         self.planner.dyna.setGoalGC(copy.copy(self.goal))  # Setting GC
 
+
         # Matrices for holding dynamics
         self.A = np.ndarray((self.planner.nState, self.planner.nState))
         self.B = np.ndarray((self.planner.nInput, self.planner.nInput))
@@ -126,10 +127,10 @@ class planner_interface:
 
         # Next point on the Trajectory
         z = np.ndarray(self.planner.nState)
+
         self.planner.dyna.simulateOneStep(
             self.x_actual, u_local, self.xNew, z)
         print "Simulated_onestep"
-
         return self.xNew, z
 
     def update_belief(self, z):

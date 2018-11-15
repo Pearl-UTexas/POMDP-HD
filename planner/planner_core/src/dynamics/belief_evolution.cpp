@@ -5,7 +5,6 @@ BeliefEvolution::BeliefEvolution()
     nModel += 1; // 1 additional Model for goal state
 
     ProblemDefinition();
-
     Eigen::VectorXd I_; 
     I_.setOnes(nModel); 
     wts = (1./nModel)*I_;
@@ -38,13 +37,7 @@ void BeliefEvolution::setGoalGC(Eigen::Map<Eigen::VectorXd>& goal)
     // Add More GCs if needed and then set set_of_gcs to this
     multiple_gcs.push_back(gcs);
     set_of_gcs[nModel-1] = multiple_gcs;
-
-    // Clearing vectors
-    gcs.conditions.clear();
-    multiple_gcs.clear();
-
 }
-
 
 void BeliefEvolution::getMatrices(int& idx, Eigen::Map<Eigen::MatrixXd>& A, Eigen::Map<Eigen::MatrixXd>& B, Eigen::Map<Eigen::MatrixXd>& C, Eigen::Map<Eigen::MatrixXd>& V, Eigen::Map<Eigen::MatrixXd>& W)
 {
@@ -150,7 +143,6 @@ void BeliefEvolution::beliefUpdatePlanning(Eigen::Map<Eigen::VectorXd>& mu, Eige
         Eigen::VectorXd new_wts = Eigen::VectorXd::Zero(nModel);
         Eigen::MatrixXd obs_err_cov;
 
-
         // Belief Update: Continuous Dynamics
         for(int i=0; i<nModel; i++)
         {  
@@ -170,10 +162,10 @@ void BeliefEvolution::beliefUpdatePlanning(Eigen::Map<Eigen::VectorXd>& mu, Eige
             fastWts(mu1, cov1, wts1);
             P_dnew_dk.row(i) = wts1;
         }
-        
+
         // Discrete State Belief: Prior
         wts_bar = P_dnew_dk.transpose()*old_wts;
-        
+
         if(wts_bar.hasNaN() || wts_bar.maxCoeff() < 1e-7)
         {
             cout << "wts in dyna = \n" << wts << endl;
@@ -237,8 +229,6 @@ void BeliefEvolution::beliefUpdatePlanning(Eigen::Map<Eigen::VectorXd>& mu, Eige
             cov_set_[i] = dummy;
         }
         utils::multiply_matrixMap_w_vector(cov_set_, new_wts, cov_new);
-
-        // Data Storage
         Eigen::MatrixXf::Index max_index;
         wts.maxCoeff(&max_index);
 
@@ -265,7 +255,7 @@ void BeliefEvolution::predictionStochastic(Eigen::Map<Eigen::VectorXd>& mu, Eige
     Eigen::VectorXd wts1;
 
     // increaseIntegrationResolution(1., ds_res_loop_count_);
-
+    
     // Continuous Dynamics
     for(int l_count=0; l_count<ds_res_loop_count_; l_count++)
     {
@@ -454,70 +444,5 @@ void BeliefEvolution::increaseIntegrationResolution(float k1, float k2)
         dynamics[i]->A = dynamics[i]->A.pow(ratio);
         dynamics[i]->B = ratio*dynamics[i]->B;
     }
-}
-*/
-
-
-
-//////////////////////////////
-///////* Simulator Class *////
-//////////////////////////////
-/*
-void Simulator::initialize(int nDS)
-{   
-    nModel = nDS - 1;
-
-    // Hybrid Dynamics Definition
-    utils::reduce_map_size(set_of_gcs, set_of_gcs, 1);
-}
-
-
-void Simulator::simulateOneStep(Eigen::Map<Eigen::VectorXd>& x, Eigen::Map<Eigen::VectorXd>& u, Eigen::Map<Eigen::VectorXd>& x_new, Eigen::Map<Eigen::VectorXd>& z_new)
-{
-    // Set activeIdx
-    Eigen::VectorXd x1, z1, proc_noise_;
-
-    // Numerical Integration
-    float res = 0.0001;
-    x1 = x;
-
-    for(int i=0; i<int(1/res); i++)
-    {
-        utils::activeModel(x1, activeIdx, nState, nModel, set_of_gcs);
-
-        // Allowing motion if moving away from the wall
-        if(activeIdx == 1 && u(0) > 0) 
-            activeIdx = 0;
-        else if(activeIdx == 2 && u(1) < 0)
-            activeIdx = 0;
-        else if(activeIdx == 3)
-            {
-                if(u(0)>0 && u(1) < 0)
-                    activeIdx = 0;
-                else if(u(0)>0)
-                    activeIdx = 2;
-                else if(u(1) < 0)
-                    activeIdx = 1;
-            }
-       
-        dynamics[activeIdx]->propagateState(x1, u*res, x1);
-
-        // System Process Noise
-        // utils::nearestPD(V, covar); // Now covar is a positive definite matrix
-        // Eigen::EigenMultivariateNormal<double> normX_cholesk(zero_mean, covar);
-        // proc_noise_ = normX_cholesk.samples(1);
-
-        // x += proc_noise_;
-    }
-    
-    std::cout << "x_new:" << x1;
-
-    // Recieve observations
-    utils::activeModel(x1, activeIdx, nState, nModel, set_of_gcs);
-    dynamics[activeIdx]->getObservation(x1, z1);
-    
-    // Update outputs
-    x_new = x1;
-    z_new = z1;
 }
 */

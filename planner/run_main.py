@@ -11,11 +11,12 @@ if __name__ == "__main__":
     start_time = time.time()
 
     ## Initial Belief
+
     mu = np.array([50.0, 10.0])
 
     ## Actual System Start
     x = np.array([35., 30.])
-
+  
     ## Planner goal
     goal = np.array([0.0, 0.])
 
@@ -41,10 +42,6 @@ if __name__ == "__main__":
 
         ## Generate Planned Trajectory
         mu_plan, s_plan, u_plan = planner.generate_plan()
-
-        # print "mu_plan: " , mu_plan.T
-        # print "Planning Done"
-        # raw_input("Enter to continue!")
 
         ## Execute Planner Trajectory step-by-step
         for t in range(len(mu_plan.T)-1):
@@ -107,8 +104,8 @@ if __name__ == "__main__":
     fig = plt.figure(1)
 
     ## Setting Up Domain
-    x1 = -21.
-    y1 = -21.
+    x1 = -21.0
+    y1 = -21.0
     x2 = planner.planner.domain[0][1]
     y2 = -21.
     plt.plot([x1, x2], [y1, y2], color='k', linestyle='-', linewidth=15)
