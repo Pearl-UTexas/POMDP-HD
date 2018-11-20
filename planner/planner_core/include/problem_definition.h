@@ -4,18 +4,17 @@
 #include <iostream>
 #include <iomanip>   
 #include <eigen3/Eigen/Dense>
-#include <eigen3/unsupported/Eigen/MatrixFunctions> // For changing resolution of ds dynamics
+//#include <eigen3/unsupported/Eigen/MatrixFunctions> // For changing resolution of ds dynamics
 #include <map>
 #include <random>
 #include <algorithm>
 #include <cstdlib>
-#include <iostream>
 #include "eigenmvn.h"
 #include "omp.h"
 #include <cmath>
 #include "utils.h"
 
-#include "linear_dynamics.h"
+#include "dynamics_models/linear_dynamics.h"
 #include <memory>
 
 using namespace std;

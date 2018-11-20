@@ -35,6 +35,7 @@
 
 #include <eigen3/Eigen/Dense>
 #include <random>
+#include <chrono>
 
 /*
   We need a functor that can pretend it's const,
@@ -51,11 +52,18 @@ namespace Eigen {
 	static std::mt19937 rng;                        // The uniform pseudo-random algorithm
 	mutable std::normal_distribution<Scalar> norm; // gaussian combinator
 	
+    typedef std::chrono::high_resolution_clock myclock; // Using Clock as seed instead of the default seed
+    myclock::time_point beginning = myclock::now();
+
 	EIGEN_EMPTY_STRUCT_CTOR(scalar_normal_dist_op)
 
 	template<typename Index>
 	inline const Scalar operator() (Index, Index = 0) const { return norm(rng); }
-	inline void seed(const uint64_t &s) { rng.seed(s); }
+	inline void seed(const uint64_t &s) { 
+        //rng.seed(s); }
+        myclock::duration d = myclock::now() - beginning;
+        unsigned seed2 = d.count();
+        rng.seed(seed2);}
       };
 
     template<typename Scalar>
@@ -87,8 +95,8 @@ namespace Eigen {
       :_use_cholesky(use_cholesky)
      {
         randN.seed(seed);
-	setMean(mean);
-	setCovar(covar);
+	    setMean(mean);
+    	setCovar(covar);
       }
 
     void setMean(const Matrix<Scalar,Dynamic,1>& mean) { _mean = mean; }
