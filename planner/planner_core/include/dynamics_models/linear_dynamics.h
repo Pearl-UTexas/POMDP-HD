@@ -37,6 +37,7 @@ public:
             Eigen::VectorXd, Eigen::VectorXd&);
     void getObservation(Eigen::VectorXd, Eigen::VectorXd&);
 
+    Eigen::VectorXd getRandomNoiseVector(Eigen::VectorXd);
     void propagateStateWithCov(Eigen::VectorXd, 
             Eigen::MatrixXd, Eigen::VectorXd, Eigen::VectorXd&, 
             Eigen::MatrixXd&);

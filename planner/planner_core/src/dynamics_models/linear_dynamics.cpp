@@ -36,15 +36,19 @@ void LinearDynamics::propagateStateWithCov(Eigen::VectorXd x, Eigen::MatrixXd co
     cov_new = A*cov*A.transpose() + V;
 }
 
-void LinearDynamics::getObservation(Eigen::VectorXd x, Eigen::VectorXd& z)
+Eigen::VectorXd LinearDynamics::getRandomNoiseVector(Eigen::VectorXd mean)
 {
-    // Generate Noise
-    Eigen::VectorXd zero_mean_ = Eigen::VectorXd::Zero(nState);
     Eigen::MatrixXd noise_covar_;
     utils::nearestPD(W, noise_covar_);
-    Eigen::EigenMultivariateNormal<double> normX_cholesk(zero_mean_, noise_covar_);
-    Eigen::VectorXd obs_noise_ = normX_cholesk.samples(1);
+    Eigen::EigenMultivariateNormal<double> normX_cholesk(mean, noise_covar_);
+    return normX_cholesk.samples(1);
+}
 
+
+void LinearDynamics::getObservation(Eigen::VectorXd x, Eigen::VectorXd& z)
+{
+    Eigen::VectorXd zero_mean_ = Eigen::VectorXd::Zero(nOutput);
+    Eigen::VectorXd obs_noise_ = getRandomNoiseVector(zero_mean_);
     // Generate Observation
     z = C*x + obs_noise_;
 }

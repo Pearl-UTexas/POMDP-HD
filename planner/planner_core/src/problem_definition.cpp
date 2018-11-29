@@ -15,7 +15,8 @@ void ProblemDefinition::defineHybridDynamicsModel()
 {
     // Dynamics 1
     auto dyna_ = make_shared<dynamics::LinearDynamics> (dynamics::LinearDynamics(nState, nInput, nOutput));
-    dyna_->W *= 100.;
+    dyna_->V *= 1.;
+    dyna_->W *= 10.;
     dynamics.push_back(make_shared<dynamics::LinearDynamics> (*dyna_));
     dyna_.reset();
 

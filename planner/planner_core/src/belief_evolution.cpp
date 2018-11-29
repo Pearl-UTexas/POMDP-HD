@@ -330,7 +330,7 @@ void BeliefEvolution::observationUpdate(Eigen::Map<Eigen::VectorXd>& z, Eigen::M
     Eigen::VectorXd mu;
     Eigen::MatrixXd cov, gamma;
     Eigen::VectorXd zModel;
-    Eigen::MatrixXd prod_mat;
+    Eigen::MatrixXd prod_mat, prod_mat_inv;
 
     // Discrete State Update
     Eigen::VectorXd wts_bar = wts; //  Previous wts
@@ -346,11 +346,11 @@ void BeliefEvolution::observationUpdate(Eigen::Map<Eigen::VectorXd>& z, Eigen::M
 
         dynamics[i]->getObservationNoNoise(mu, zModel);
         dynamics[i]->getObservationCov(gamma, prod_mat);
-        prod_mat = prod_mat.inverse();
+        prod_mat_inv = prod_mat.inverse();
 
         /* Kalman Filter: Innovation Update*/
-        mu += gamma*dynamics[i]->C.transpose()*(prod_mat)*(z - zModel);
-        cov = gamma - gamma*dynamics[i]->C.transpose()*(prod_mat)*(dynamics[i]->C*gamma);
+        mu += gamma*dynamics[i]->C.transpose()*(prod_mat_inv)*(z - zModel);
+        cov = gamma - gamma*dynamics[i]->C.transpose()*(prod_mat_inv)*(dynamics[i]->C*gamma);
         
         mu_set_[i] = mu;
         cov_set_[i] = cov;
