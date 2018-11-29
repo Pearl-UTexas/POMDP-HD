@@ -64,7 +64,7 @@ void UKF::prediction(Eigen::VectorXd x_hat,
     // Propagate Sigma Pts through Dynamics
     std::vector<Eigen::VectorXd> predicted_sigma_pts;
     Eigen::VectorXd nx_sigma_pt(n_x), x_i(n_x), v_i, new_sigma_pt(n_x);
-    for(int i=0; i<sigma_points.size(); i++)
+    for(unsigned int i=0; i<sigma_points.size(); i++)
     {
         nx_sigma_pt = sigma_points.at(i).head(n_x);
         v_i = sigma_points.at(i).tail(n_v);
@@ -83,12 +83,12 @@ void UKF::prediction(Eigen::VectorXd x_hat,
     double W_c_i = W_m_i;
 
     x_bar = W_m_0 * predicted_sigma_pts.at(0);
-    for(int i=1; i<predicted_sigma_pts.size(); i++)
+    for(unsigned int i=1; i<predicted_sigma_pts.size(); i++)
         x_bar += W_m_i * predicted_sigma_pts.at(i);
 
     P_bar = W_c_0 * (predicted_sigma_pts.at(0) - x_bar)*
                     (predicted_sigma_pts.at(0) - x_bar).transpose();
-    for(int i=1; i<predicted_sigma_pts.size(); i++)
+    for(unsigned int i=1; i<predicted_sigma_pts.size(); i++)
         P_bar += W_c_i * (predicted_sigma_pts.at(i) - x_bar)*
                     (predicted_sigma_pts.at(i) - x_bar).transpose();
 }
@@ -120,7 +120,7 @@ void UKF::update(Eigen::VectorXd x_bar,
     std::vector<Eigen::VectorXd> measurement_sigma_pts;
     Eigen::VectorXd nx_sigma_pt(n_x), z_i(n_x), w_i(n_z), new_sigma_pt(n_x);
     
-    for(int i=0; i<sigma_points.size(); i++)
+    for(unsigned int i=0; i<sigma_points.size(); i++)
     {
         nx_sigma_pt = sigma_points.at(i).head(n_x);
         w_i = sigma_points.at(i).tail(n_z);
@@ -139,7 +139,7 @@ void UKF::update(Eigen::VectorXd x_bar,
 
     // Mean Calculation
     z_bar = W_m_0 * measurement_sigma_pts.at(0);
-    for(int i=1; i<measurement_sigma_pts.size(); i++)
+    for(unsigned int i=1; i<measurement_sigma_pts.size(); i++)
         z_bar += W_m_i * measurement_sigma_pts.at(i);
     
     // Covariance of observations
@@ -150,7 +150,7 @@ void UKF::update(Eigen::VectorXd x_bar,
     P_xz = W_c_0 * (sigma_points.at(0).head(n_x) - x_bar)*
                     (measurement_sigma_pts.at(0) - z_bar).transpose();
     
-    for(int i=1; i<measurement_sigma_pts.size(); i++)
+    for(unsigned int i=1; i<measurement_sigma_pts.size(); i++)
     {
         P_zz += W_c_i * (measurement_sigma_pts.at(i) - z_bar)*
                     (measurement_sigma_pts.at(i) - z_bar).transpose();

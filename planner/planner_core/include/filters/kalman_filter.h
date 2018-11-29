@@ -1,7 +1,7 @@
 #ifndef KALMAN_FILTER_H_
 #define KALMAN_FILTER_H_
 
-#include "filter.h"
+#include "../filter.h"
 
 namespace filters
 {

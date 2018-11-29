@@ -3,6 +3,8 @@
 
 #include "problem_definition.h"
 #include "simulator.h"
+#include "filter.h"
+#include "filters/ukf.h"
 
 using namespace std;
 
@@ -14,9 +16,12 @@ class BeliefEvolution : public ProblemDefinition
         double goal_threshold;
 		double eps1 = 0.05;
         
+        // Filter
+        std::shared_ptr<filters::UKF> filter;
+
         // Simulator
         std::shared_ptr<Simulator> simulator;
-    
+            
         // Data Storage 
         int activeIdx;
 		std::map<int, Eigen::VectorXd> mu_set_;
@@ -29,9 +34,6 @@ class BeliefEvolution : public ProblemDefinition
 
         // Define Goal guard Conditions
         void setGoalGC(Eigen::Map<Eigen::VectorXd>&);
-
-        // Define Active Model
-        // void activeModel(Eigen::Map<Eigen::VectorXd>&, int&);
 
         void getMatrices(int&, Eigen::Map<Eigen::MatrixXd>&, Eigen::Map<Eigen::MatrixXd>&, Eigen::Map<Eigen::MatrixXd>&, Eigen::Map<Eigen::MatrixXd>&, Eigen::Map<Eigen::MatrixXd>&);
 

@@ -9,6 +9,9 @@ BeliefEvolution::BeliefEvolution()
     I_.setOnes(nModel); 
     wts = (1./nModel)*I_;
 
+    filter = make_shared<filters::UKF> (filters::UKF());
+    std::cout << "filter n_x :" << filter->n_x << std::endl;
+
     simulator = make_shared<Simulator> (Simulator());
     simulator->initialize(nModel);
 }
@@ -128,14 +131,12 @@ void BeliefEvolution::beliefUpdatePlanning(Eigen::Map<Eigen::VectorXd>& mu, Eige
         }
 
         // Initialization
-        Eigen::MatrixXd gamma, dummy, prod_mat;
+        Eigen::VectorXd mu_bar(nState);
+        Eigen::MatrixXd cov_bar(nState, nState), dummy(nState, nState);
 
         // ds Prediction
-        Eigen::MatrixXd P_dnew_dk;
-        P_dnew_dk = eps1*Eigen::MatrixXd::Identity(nModel, nModel);
+        Eigen::MatrixXd P_dnew_dk = eps1*Eigen::MatrixXd::Identity(nModel, nModel);
         Eigen::VectorXd old_wts = wts;
-        Eigen::VectorXd mu1;
-        Eigen::MatrixXd cov1;
         Eigen::VectorXd wts1, wts_bar;
 
         // ds Observation update
@@ -146,20 +147,15 @@ void BeliefEvolution::beliefUpdatePlanning(Eigen::Map<Eigen::VectorXd>& mu, Eige
         // Belief Update: Continuous Dynamics
         for(int i=0; i<nModel; i++)
         {  
-            dynamics[i]->propagateStateWithCov(mu, cov, u, mu_set_[i], gamma);
-    
-            // Under MLO, just propagate Covariance
-            dynamics[i]->getObservationCov(gamma, prod_mat);
-            prod_mat = prod_mat.inverse();
+            // Filter Prediction
+            filter->prediction(mu, cov, u, mu_bar, cov_bar);
             
-            // Kalman Update
-            cov_set_[i] = gamma - gamma*dynamics[i]->C.transpose()*(prod_mat)*(dynamics[i]->C*gamma);
+            // MLO Update 
+            filter->update(mu_bar, cov_bar, mu_bar, mu_set_[i], cov_set_[i]);
 
             // Discrete State Update: Generating 
             // Extended State Transition Matrix
-            mu1 = mu_set_[i];
-            cov1 = cov_set_[i];
-            fastWts(mu1, cov1, wts1);
+            fastWts(mu_set_[i], cov_set_[i], wts1);
             P_dnew_dk.row(i) = wts1;
         }
 
@@ -185,12 +181,10 @@ void BeliefEvolution::beliefUpdatePlanning(Eigen::Map<Eigen::VectorXd>& mu, Eige
         try{
             for(int i=0; i<nModel; i++) 
             {   
-                mu1 = mu_set_[i];
-                cov1 = cov_set_[i];
-                utils::nearestPD(cov1, cov1); // Ensuring a PD covariance
+                utils::nearestPD(cov_set_[i], cov_set_[i]); // Ensuring a PD covariance
             
                 // Construct Observation Probability Matrix
-                P_z_ds(i) = utils::mvn_pdf(mu_new, mu1, cov1);
+                P_z_ds(i) = utils::mvn_pdf(mu_new, mu_set_[i], cov_set_[i]);
             }
 
             if(P_z_ds.hasNaN() || P_z_ds.maxCoeff() < 1e-8)
@@ -250,8 +244,6 @@ void BeliefEvolution::predictionStochastic(Eigen::Map<Eigen::VectorXd>& mu, Eige
     Eigen::VectorXd old_wts = wts;
     Eigen::VectorXd wts_bar;
 
-    Eigen::VectorXd mu1;
-    Eigen::MatrixXd cov1;
     Eigen::VectorXd wts1;
 
     // increaseIntegrationResolution(1., ds_res_loop_count_);
@@ -261,12 +253,11 @@ void BeliefEvolution::predictionStochastic(Eigen::Map<Eigen::VectorXd>& mu, Eige
     {
         for(int i=0; i<nModel; i++)
         {   
-            dynamics[i]->propagateStateWithCov(mu, cov, u, mu_set_[i], cov_set_[i]);
+            //dynamics[i]->propagateStateWithCov(mu, cov, u, mu_set_[i], cov_set_[i]);
+            filter->prediction(mu, cov, u, mu_set_[i], cov_set_[i]);
 
             // Discrete Dynamics
-            mu1 = mu_set_[i];
-            cov1 = cov_set_[i];
-            fastWts(mu1, cov1, wts1);
+            fastWts(mu_set_[i], cov_set_[i], wts1);
             P_dnew_dk.row(i) = wts1;
         }
 
@@ -327,11 +318,6 @@ void BeliefEvolution::predictionDeterministic(Eigen::Map<Eigen::VectorXd>& mu, E
 
 void BeliefEvolution::observationUpdate(Eigen::Map<Eigen::VectorXd>& z, Eigen::Map<Eigen::VectorXd>& mu_new, Eigen::Map<Eigen::MatrixXd>& cov_new, Eigen::Map<Eigen::VectorXd>& wts_new, int ds_new)
 {
-    Eigen::VectorXd mu;
-    Eigen::MatrixXd cov, gamma;
-    Eigen::VectorXd zModel;
-    Eigen::MatrixXd prod_mat, prod_mat_inv;
-
     // Discrete State Update
     Eigen::VectorXd wts_bar = wts; //  Previous wts
     Eigen::VectorXd P_z_ds = Eigen::VectorXd::Zero(nModel);
@@ -341,23 +327,11 @@ void BeliefEvolution::observationUpdate(Eigen::Map<Eigen::VectorXd>& z, Eigen::M
     // Continuous State update
     for(int i=0; i<nModel; i++) 
     {   
-        mu = mu_set_[i];
-        gamma = cov_set_[i];
-
-        dynamics[i]->getObservationNoNoise(mu, zModel);
-        dynamics[i]->getObservationCov(gamma, prod_mat);
-        prod_mat_inv = prod_mat.inverse();
-
-        /* Kalman Filter: Innovation Update*/
-        mu += gamma*dynamics[i]->C.transpose()*(prod_mat_inv)*(z - zModel);
-        cov = gamma - gamma*dynamics[i]->C.transpose()*(prod_mat_inv)*(dynamics[i]->C*gamma);
-        
-        mu_set_[i] = mu;
-        cov_set_[i] = cov;
+        filter->update(mu_set_[i], cov_set_[i], z, mu_set_[i], cov_set_[i]);
 
         // Discrete State
-        utils::nearestPD(cov, obs_err_cov); // converting obs_err_cov mat to PD
-        P_z_ds(i) = utils::mvn_pdf(z, mu, obs_err_cov);
+        utils::nearestPD(cov_set_[i], obs_err_cov); // converting obs_err_cov mat to PD
+        P_z_ds(i) = utils::mvn_pdf(z, mu_set_[i], obs_err_cov);
     }
 
     if(P_z_ds.hasNaN() || P_z_ds.maxCoeff() < 1e-6)

@@ -5,7 +5,7 @@
 #include <eigen3/Eigen/Dense>
 #include <vector>
 #include <cmath>
-#include "../problem_definition.h"
+#include "problem_definition.h"
 
 namespace filters
 {
