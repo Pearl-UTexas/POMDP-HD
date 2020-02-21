@@ -122,8 +122,7 @@ class pomdp_hd:
         Q = 1.0*np.eye(self.nState)
         R = 0.5*np.eye(self.nInput)
         Q_f = 125*np.eye(self.nState)
-        labda = 0e0*np.eye((self.nState*(self.nState+1)/2))
-        labda[1,1] = 0.
+        labda = 0.1*np.eye((self.nState*(self.nState+1)/2))
 
         opt = trajectoryOptimization(self.nState, self.nSegments, self.nInput, self.nOutput, self.nModel, Q, R, Q_f, labda, self.dyna)
 
@@ -170,7 +169,7 @@ class pomdp_hd:
 
             ''' Do rollouts to find a feasible lower cost path  '''
             self.generate_rollouts()
-            print "After roolout generation"
+            print "After rollout generation"
 
             ''' Calculate cost for the rollout'''
             # ## Convert rollout to wts
@@ -234,8 +233,7 @@ class pomdp_hd:
         if self.start_ds != self.end_ds:
             all_possible.remove(self.start_ds)
         else:
-            self.rollouts= [[self.start_ds, self.end_ds]]
-            return
+            raise ValueError("Start and Goal discrete states are same. Please check guard conditions!")
 
         # Generate all rollouts:
         for L in range(1, len(all_possible)+1):

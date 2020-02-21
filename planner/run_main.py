@@ -59,7 +59,7 @@ if __name__ == "__main__":
             ### Check if belief diverged too far.
             if(max(abs(mu-mu_plan[:,t+1])) > replanning_threshld):
                 print "BLQR unable to stabilize. Replanning \n"
-                raw_input('press Enter to replan')
+                # raw_input('press Enter to replan')
                 break
 
         print "\n####################"
@@ -127,8 +127,8 @@ if __name__ == "__main__":
     plt.plot(x_vec[0], y_vec[0], 'ko', x_vec[-1], y_vec[-1], 'gs' , ms=10.0, mew=2.0)
     plt.plot(x_vec_true[0], y_vec_true[0], 'ko', x_vec_true[-1], y_vec_true[-1], 'gs' , ms=10.0, mew=2.0)
 
-    plt.xlim([-20.0,100.])
-    plt.ylim([-20.0, 100.0])
+    # plt.xlim([-20.0,100.])
+    # plt.ylim([-20.0, 100.0])
     # plt.axis('equal')
     fig.show()
 raw_input('Press Enter to exit!')

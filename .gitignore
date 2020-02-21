@@ -1,2 +1,6 @@
 *.pyc
 *.out
+*.so
+planner/data/*
+planner/planner_core/cython/build/
+planner/planner_core/cython/beliefEvolution.cpp

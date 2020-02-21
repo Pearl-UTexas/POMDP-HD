@@ -190,6 +190,9 @@ class trajectoryOptimization:
 
         res = snopta(self.snopt_objFun,n,nF,x0=X0, xlow=Xlow,xupp=Xupp, Flow=Flow,Fupp=Fupp, ObjRow=ObjRow, F=F_init, Fstate=Fstate_init, name='ds_goal', start=Start, options=options)
 
+        if res == None:
+            raise ValueError("SNOPT FAILED TO OPTIMIZE!")
+
         print "SNOPT Result =", np.round(res.x, 4)
 
         xfinal = res.x
