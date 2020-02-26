@@ -97,7 +97,7 @@ void BeliefEvolution::setGC(Eigen::Map<Eigen::VectorXd>& goal)
     dummy.max_val = INF;
     gcs.conditions.push_back(dummy);
     // State 1
-    dummy.min_val = -25. ;//-INF;//-2.5;
+    dummy.min_val = -INF;//-2.5;
     dummy.max_val = -20.;
     gcs.conditions.push_back(dummy);
     // Add More GCs if needed and then set set_of_gcs to this
@@ -112,7 +112,7 @@ void BeliefEvolution::setGC(Eigen::Map<Eigen::VectorXd>& goal)
     // GCs for model 2
     gcs.conditions.clear();
     // State 0
-    dummy.min_val = -25.; //-INF; //-2.5;//-INF;
+    dummy.min_val = -INF; //-2.5;//-INF;
     dummy.max_val = -20.;
     gcs.conditions.push_back(dummy);
     // State 1
@@ -682,6 +682,7 @@ void Simulator::simulation(Eigen::Map<Eigen::VectorXd>& x, Eigen::Map<Eigen::Vec
             activeIdx = 0;
         else if(activeIdx == 2 && u(1) < 0)
             activeIdx = 0;
+        /*
         else if(activeIdx == 3)
             {
                 if(u(0)>0 && u(1) < 0)
@@ -691,6 +692,7 @@ void Simulator::simulation(Eigen::Map<Eigen::VectorXd>& x, Eigen::Map<Eigen::Vec
                 else if(u(1) < 0)
                     activeIdx = 1;
             }
+        */
 
         A << mA[activeIdx];
         B << mB[activeIdx];
