@@ -35,25 +35,25 @@ void BeliefEvolution::setMatrices()
         if(i==0)
         {
             B *= 1.0;
-            W *= 100.;
+            W *= 400.;
         }
         else if(i==1) // Constraint parallel to x
         {
             B(1,1) = 0.; // Movement only in x
-            W *= 100.;
+            W *= 400.;
             W(1,1) = 1e-3;
         }
         else if(i==2) // Constraint parallel to y
         {
             B(0,0) = 0.; // Movement only in y
-            W *= 100.;
+            W *= 400.;
             W(0,0) = 1e-3; // Good observation only in x
         }
         // Extra goal ds
         else if(i==3)
         {
             B *= 1.; // Movement in all directions
-            W *= 100.;
+            W *= 400.;
         }
 
         mA[i] = A;
@@ -164,7 +164,8 @@ void BeliefEvolution::fastWts(Eigen::VectorXd& mu, Eigen::MatrixXd& cov, Eigen::
 {   
     // cout << "Inputs: \nmu: " << mu.transpose() << "\ncov:\n" << cov << endl; 
     int n_pts_= nSamples;
-    Eigen::EigenMultivariateNormal<double> normX_cholesk(mu, cov);
+    unsigned int seed = 0;
+    Eigen::EigenMultivariateNormal<double> normX_cholesk(mu, cov, false, seed);
     wts_new = Eigen::VectorXd::Zero(nModel);
     
     // Generating Points
@@ -728,7 +729,7 @@ void Simulator::observation(Eigen::Map<Eigen::VectorXd>& x_new, Eigen::Map<Eigen
 
     // cout << "covar" << covar << "\n";
     
-    Eigen::EigenMultivariateNormal<double> normX_cholesk(mean, covar);
+    Eigen::EigenMultivariateNormal<double> normX_cholesk(mean, covar, false, 0);
     Eigen::VectorXd obs_noise_ = normX_cholesk.samples(1);
     cout << "obs_noise_ " << obs_noise_ << "\n";
 
