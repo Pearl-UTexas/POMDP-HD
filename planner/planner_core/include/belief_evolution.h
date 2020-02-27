@@ -11,6 +11,7 @@
 #include "omp.h"
 #include <cmath>
 #include "utils.h"
+#include <time.h>
 
 using namespace std;
 
@@ -35,6 +36,7 @@ class Simulator
         
         std::map<int, std::vector<Guards> > set_of_gcs;
 
+        uint64_t seed=11; // Gaussian Noise seed
 
         /*Declaring Memeber Functions */
         Simulator(){};
@@ -55,6 +57,9 @@ class BeliefEvolution
 		int nModel;
 
 		double eps1 = 0.05;
+
+        bool manual_seed_ = false;
+        uint64_t seed=11; // Gaussian Noise seed
 
 		//Utils
 		Eigen::MatrixXd I_mat_;	

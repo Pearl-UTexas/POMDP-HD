@@ -23,6 +23,8 @@ void reduce_map_size(std::map<int, std::vector<Guards> > &, std::map<int, std::v
 
 void activeModel(const Eigen::VectorXd&, int&, int, int, std::map<int, std::vector<Guards> > &);
 
+void printGCs(std::map<int, std::vector<Guards> > &);
+
 void multiply_vectorMap_w_vector(std::map<int, Eigen::VectorXd>& , Eigen::VectorXd&, Eigen::Map<Eigen::VectorXd>&);
 
 void multiply_matrixMap_w_vector(std::map<int, Eigen::MatrixXd>& , Eigen::VectorXd&, Eigen::Map<Eigen::MatrixXd>&);
