@@ -142,6 +142,7 @@ class pomdp_hd:
         wts_safe = copy.copy(self.belief.wts)
 
         # First Pass
+        '''
         self.opt.nSegments = copy.copy(self.nSegments)
         cost, mu_plan, s_plan, u_plan, final_wts = self.opt.cs_optimize(self.start_mu, self.start_cov, self.belief.wts, self.t,  self.goal_cs)
         
@@ -149,7 +150,7 @@ class pomdp_hd:
         
         if self.do_verbose:
             print "Full Path in first go: \n", self.generateDetailedCSPlan(plan_path)
-
+        '''
         cost = 10
         if cost < 1.:
             print "Cost: ", cost
