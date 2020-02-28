@@ -11,25 +11,28 @@ import time, sys
 import numpy as np
 from scipy.optimize import *
 from optimize import snopta, SNOPT_options
-from copy import deepcopy
+import copy
 from numpy import linalg as la
 
 from py_utils import *
 
 class trajectoryOptimization:
-    def __init__ (self, nState, nSegments, nInput, nOutput, nModel, Q, R, Q_f, labda, sysDynamics):
+    MAX_TRIES = 1
+
+    def __init__(self, nState, nInput, nOutput, nModel, Q, R, Q_f, labda, sysDynamics):
         # Planning Parameters
         self.nState = nState
         self.nInput = nInput
         self.nOutput = nOutput
-        self.nSegments = nSegments
         self.nModel = nModel
-        self.len_s = self.nState*(self.nState+1)/2
+        self.len_s = int(self.nState * (self.nState + 1) / 2)
         self.id1 = np.triu_indices(self.nState)
         self.goal = None
-        self.delta = 0.1
         self.sysDynamics = sysDynamics
-        self.t_res = 1.0
+        self.extra_euler_res = 1
+        self.time_horizon = 10
+
+        self.nSegments = 3
 
         # Cost Matrices
         self.Q = Q
@@ -40,182 +43,199 @@ class trajectoryOptimization:
         # Logging
         self.do_verbose = True
 
-
     def objectiveFunction(self, X):
-        s = X[(self.nState + self.len_s)*self.nSegments - self.len_s:(self.nState + self.len_s)*self.nSegments]
+        s = X[(self.nState + self.len_s) * (self.nSegments+1) - self.len_s:(self.nState + self.len_s) * (self.nSegments+1)]
         J = 0.
 
-        for i in range(self.nSegments):
-            m = X[i*self.nState:(i*self.nState+self.nState)]
-            u = X[i*self.nInput + (self.nState + self.len_s)*self.nSegments: (i+1)*self.nInput + (self.nState + self.len_s)*self.nSegments]
-            J = J + (m-self.goal).dot(self.Q).dot(m-self.goal) + u.dot(self.R.dot(u))
+        for i in range(self.nSegments-1):
+            m = X[i * self.nState:(i+1) * self.nState]
+            u = X[i * self.nInput + (self.nState + self.len_s) * (self.nSegments+1): (i + 1) * self.nInput + (
+                    self.nState + self.len_s) * (self.nSegments+1)]
+            J = J + (m - self.goal).dot(self.Q).dot(m - self.goal) + u.dot(self.R.dot(u))
+            # J = J + (m[:3]-self.goal[:3]).dot(self.Q[:3, :3]).dot(m[:3]-self.goal[:3]) + u.dot(self.R.dot(u))
 
-        J = J + s.T.dot(self.labda).dot(s) + (m-self.goal).dot(self.Q_f).dot(m-self.goal)
+        m_T = X[self.nSegments* self.nState:(self.nSegments+1) * self.nState]
+
+        J = J + s.T.dot(self.labda).dot(s) + (m_T - self.goal).dot(self.Q_f).dot(m_T - self.goal)
+        # J = J + s.T.dot(self.labda).dot(s) + (m_T[:3]-self.goal[:3]).dot(self.Q[:3, :3]).dot(m_T[:3]-self.goal[:3])
 
         return J
-    
 
-    def constraints(self, X, X0):        
-        u = X[(self.nState+self.len_s)*self.nSegments:(self.nState+self.len_s + self.nInput)*self.nSegments]
-        u = np.reshape(u,(self.nInput,self.nSegments),'F')
+    def constraints(self, X):  
+        X_constrained = copy.copy(X)
+        X_constrained[:self.nState] = copy.copy(self.X0[:self.nState])
+        X_constrained[self.nState*(self.nSegments+1):self.nState*(self.nSegments+1) + self.len_s] = copy.copy(self.X0[self.nState*(self.nSegments+1):self.nState*(self.nSegments+1) + self.len_s])
+
+        mu = copy.copy(X_constrained[:self.nState])
+        s = copy.copy(X_constrained[self.nState*(self.nSegments+1):self.nState*(self.nSegments+1) + self.len_s])
+        cov = symarray(np.zeros((self.nState, self.nState)))
+        cov[self.id1] = s
+
+        u = copy.copy(X[(self.nState+self.len_s)*(self.nSegments+1):])
+        u = np.reshape(u,(self.nInput,self.nSegments),'F')        
         
-        m_new = np.zeros((self.nState,self.nSegments))
-        s_new = np.zeros((self.len_s,self.nSegments))
-        u_new = X[(self.nState+self.len_s)*self.nSegments:(self.nState+self.len_s + self.nInput)*self.nSegments]
-
-        mu_old = X[:self.nState]
-        s_old = X[self.nState*self.nSegments:self.nState*self.nSegments + self.len_s]
-
-        # cov_old = symarray(np.zeros((self.nState, self.nState)))
-        # cov_old[self.id1] = s_old*1.
-        
-        U = np.zeros((self.nState, self.nState))
-        U[self.id1] = deepcopy(s_old)
-        L = U.T
-        cov_old = deepcopy(np.dot(L, L.T.conj()))
-        if not is_pos_def(cov_old):
-            cov_old = deepcopy(nearestPD(cov_old))
-
-        m_new[:,0] = deepcopy(mu_old)
-        s_new[:,0] = deepcopy(s_old)
-
-        mu = np.ndarray(self.nState)
-        cov = np.ndarray((self.nState, self.nState))
         wts = np.ndarray(self.nModel)
         ds = 0
 
-        for i in range(self.nSegments-1):
+        for i in range(self.nSegments):
             for t in range(self.delta):
                 # Incuding numerical integration for belief evolution
-                for t_int in range(int(1/self.t_res)):
-                    ds_bar = self.sysDynamics.beliefUpdatePlanning(mu_old, cov_old, u[:,i]*self.t_res, mu, cov, wts, ds)
-                    mu_old = deepcopy(mu)
-                    cov_old = deepcopy(cov)
+                for t_int in range(int(self.extra_euler_res)):
+                    ds_bar = self.sysDynamics.beliefUpdatePlanning(mu, cov, u[:,i]/self.extra_euler_res, mu, cov, wts, ds)
 
-            m_new[:,i+1] = deepcopy(mu)
-            s_new[:,i+1] = deepcopy(cov[self.id1])
+            X_constrained[(i+1)*self.nState:(i+2)*self.nState] = copy.copy(mu)
+            X_constrained[self.nState*(self.nSegments+1) + (i+1)*self.len_s : self.nState*(self.nSegments+1) + (i+2)*self.len_s] = copy.copy(cov[self.id1])
+            
+            if i < self.nSegments-1:  #Skipping last control input
+                X_constrained[(self.nState+self.len_s)*(self.nSegments+1) + (i+1)*self.nInput:(self.nState+self.len_s)*(self.nSegments+1) + (i+2)*self.nInput] = copy.copy(u[:,i])
 
-        m_new = np.reshape(m_new,(self.nState*self.nSegments),'F')
-        s_new = np.reshape(s_new,(self.len_s*self.nSegments),'F')
-
-        X_new = np.reshape(np.concatenate((m_new,s_new,u_new),axis=0),len(X),'F')
-        return X_new
+        return X_constrained
 
 
     def snopt_objFun(self, status, X, needF, F, needG, G):
-        obj_f = self.objectiveFunction(X) # Objective Row
-        # obj_f = 0.
+        F[0] = self.objectiveFunction(X)  # Objective Row
 
-        cons_f = deepcopy(self.constraints(X, self.X0))
+        cons_f = copy.copy(self.constraints(X))
+        F[1:] = copy.copy(X - cons_f)  # less than equal to constraints
+        return status, F
 
-        F[0] = deepcopy(obj_f)
-        F[1:] = deepcopy(X)
+    def generate_X0(self, muInit, covInit, goal):
+        mu = copy.copy(muInit)
+        cov = copy.copy(covInit)
+        u = copy.copy((goal - mu) / (self.time_horizon - 1))
+        wts = np.ndarray(self.nModel)
+        ds = 0
 
-        cons_f -= X
+        X0 = np.zeros((self.nState + self.len_s) * (self.nSegments+1) + self.nInput*self.nSegments)
+        X0[:self.nState] = copy.copy(mu)
+        X0[self.nState*(self.nSegments+1):self.nState*(self.nSegments+1) + self.len_s] = copy.copy(cov[self.id1])
+        X0[(self.nState + self.len_s)*(self.nSegments+1):(self.nState + self.len_s)*(self.nSegments+1) + self.nInput] = copy.copy(u)
+        
+        for i in range(self.nSegments):
+            for t in range(self.delta):
+                # Incuding numerical integration for belief evolution
+                for t_int in range(int(self.extra_euler_res)):
+                    ds = self.sysDynamics.beliefUpdatePlanning(mu, cov, u/self.extra_euler_res, mu, cov, wts, ds)
 
-        # Setting Dynamics for constraints
-        F[self.nState+1:self.nState*self.nSegments+1] = cons_f[self.nState:self.nState*self.nSegments]
-        F[self.nState*self.nSegments + self.len_s+1:(self.nState + self.len_s + self.nInput)*self.nSegments+1] = cons_f[self.nState*self.nSegments + self.len_s:(self.nState + self.len_s + self.nInput)*self.nSegments]
+            X0[(i+1)*self.nState:(i+2)*self.nState] = copy.copy(mu)
+            X0[self.nState*(self.nSegments+1) + (i+1)*self.len_s : self.nState*(self.nSegments+1) + (i+2)*self.len_s] = copy.copy(cov[self.id1])
+            
+            if i < self.nSegments-1:  #Skipping last control input
+                X0[(self.nState+self.len_s)*(self.nSegments+1) + (i+1)*self.nInput:(self.nState+self.len_s)*(self.nSegments+1) + (i+2)*self.nInput] = copy.copy(u)
+        return X0
 
-        # print "Objective Function = ", F
+    def cs_optimize(self, muInit, covInit, wtsInit, goal):
+        self.delta = int(np.ceil(self.time_horizon / self.nSegments))
+        # self.sysDynamics.setIntergationStepSize(self.delta)
+        self.goal = copy.copy(goal)
 
-        return status, F#, G
-
-
-    def cs_optimize(self, muInit, covInit, wtsInit, tFinal, goal):
-        self.delta = int(np.ceil(tFinal/self.nSegments))
-        self.goal = goal*1.
-
-        # print "\n******************************************************"
-        # print "Inputs:\n", "mu = ", muInit, "\ncovInit = ", covInit, "\nwtsInit = ", wtsInit, "\ngoal = ", goal
-        # print "\n******************************************************"
-
+        print("\n******************************************************")
+        print("Inputs:\n", "mu = ", muInit, "\ncovInit = ", covInit, "\nwtsInit = ", wtsInit, "\ngoal = ", goal)
+        print("\n******************************************************")
 
         ##### Setting up to use SNOPT ###
-        inf   = 1.0e20
+        inf = 1.0e20
         options = SNOPT_options()
 
-        options.setOption('Verbose',False)
-        options.setOption('Solution print',False)
-        options.setOption('Print filename','ds_goal_snopt.out')
-        options.setOption('Print level',0)
+        options.setOption('Verbose', False)
+        options.setOption('Solution print', False)
+        options.setOption('Print filename', 'ds_goal_snopt.out')
+        options.setOption('Print level', 0)
 
-        options.setOption('Optimality tolerance', 1e-2)
+        options.setOption('Optimality tolerance', 1e-3)
+        options.setOption('Major optimality', 1e-3)
+        options.setOption('Scale option', 2)
 
-        options.setOption('Summary frequency',1)
-        options.setOption('Major print level',0)
-        options.setOption('Minor print level',0)
+        options.setOption('Summary frequency', 1)
+        options.setOption('Major print level', 0)
+        options.setOption('Minor print level', 0)
 
+        # INITIALIZATION VECTOR
+        mu_range = 100.
+        s_range = 2000.
+        u_range = 50.
 
-        X0      = np.random.rand((self.nState+ self.len_s + self.nInput)*self.nSegments)*100.
-        X0[:self.nState] = muInit*1.
-        # X0[self.nState*self.nSegments:self.nState*self.nSegments + self.len_s] = covInit[self.id1]*1.
+        self.X0 = self.generate_X0(muInit, covInit, goal)
 
+        Xlow = np.array([-mu_range] * len(self.X0[:self.nState * (self.nSegments+1)]) +
+                        [0.] * len(self.X0[self.nState * (self.nSegments+1):
+                                           (self.nState + self.len_s) * (self.nSegments+1)]) +
+                        [-u_range] * len(self.X0[(self.nState + self.len_s) * (self.nSegments+1):]))
 
-        '''
-        Do cholesky Factorization on the input matrix
-        '''
-        if not isPD(covInit):
-            covInit = deepcopy(nearestPD(covInit))
+        Xupp = np.array([mu_range] * len(self.X0[:self.nState * (self.nSegments+1)]) +
+                        [s_range] * len(self.X0[self.nState * (self.nSegments+1):
+                                                (self.nState + self.len_s) * (self.nSegments+1)]) +
+                        [u_range] * len(self.X0[(self.nState + self.len_s) * (self.nSegments+1):]))
 
-        L = la.cholesky(covInit).T
+        n = len(self.X0)
+        nF = int(1 + len(self.X0))
 
-        X0[self.nState*self.nSegments:self.nState*self.nSegments + self.len_s] = np.reshape(L[self.id1] ,(self.len_s,),'F')
+        F_init = [0.] * nF
+        Fstate_init = [0] * nF
+        constraintRelax = 1e-2
 
+        # Setting the initial values of mu, cov and wts as boundary constraints
+        Flow = np.array(
+            [0.] + muInit.tolist() + [-constraintRelax] * len(self.X0[self.nState:self.nState * (self.nSegments+1)]) +
+            covInit[self.id1].tolist() + [-constraintRelax] * len(self.X0[self.nState * (self.nSegments+1) + self.len_s:]))
+        Fupp = np.array(
+            [0.] + muInit.tolist() + [constraintRelax] * len(self.X0[self.nState:self.nState * (self.nSegments+1)]) +
+            covInit[self.id1].tolist() + [constraintRelax] * len(self.X0[self.nState * (self.nSegments+1) + self.len_s:]))
 
-        self.X0 = deepcopy(X0)
+        ObjRow = 1
 
-        Xlow    = np.array([-150.0]*len(X0[:self.nState*self.nSegments]) + [0.]*len(X0[self.nState*self.nSegments:(self.nState+self.len_s)*self.nSegments]) + [-100.0]*len(X0[(self.nState+self.len_s)*self.nSegments:(self.nState+self.len_s + self.nInput)*self.nSegments]))
+        Start = 0  # Cold Start
+        cw = [None] * 5000
+        iw = [None] * 5000
+        rw = [None] * 5000
 
-        Xupp    = np.array([150.0]*len(X0[:self.nState*self.nSegments]) + [1500.]*len(X0[self.nState*self.nSegments:(self.nState+self.len_s)*self.nSegments]) + [100.0]*len(X0[(self.nState+self.len_s)*self.nSegments:(self.nState+self.len_s + self.nInput)*self.nSegments]))
+        for trial in range(self.MAX_TRIES):
+            res = snopta(self.snopt_objFun, n, nF, x0=self.X0, xlow=Xlow, xupp=Xupp, Flow=Flow, Fupp=Fupp,
+                         ObjRow=ObjRow, F=F_init, Fstate=Fstate_init, name='ds_goal', start=Start, options=options)
+            if res is None:
+                # import pdb; pdb.set_trace()
+                print("Failed to find solution for optimization after ", trial + 1, " tries. Retrying!")
+                continue
+            elif res.info == 1:
+                xfinal = res.x
 
-        n       = len(X0)
-        nF      = int(1 + len(X0))
+                mu_new = np.reshape(xfinal[:self.nState * (self.nSegments+1)], (self.nState, (self.nSegments+1)), 'F')
+                s_new = np.reshape(xfinal[self.nState * (self.nSegments+1):(self.nState + self.len_s) * (self.nSegments+1)],
+                                   (self.len_s, (self.nSegments+1)), 'F')
+                u_new = np.reshape(xfinal[(self.nState + self.len_s) * (self.nSegments+1):],
+                                   (self.nInput, self.nSegments), 'F')
 
-        F_init = [0.]*nF
-        Fstate_init = [0]*nF
-        constraintRelax = 0.0
+                final_wts = np.ndarray(self.nModel)
+                covFinal = copy.copy(covInit)
+                covFinal[self.id1] = s_new[:, -1]
+                self.sysDynamics.fastWtsMapped(mu_new[:, -1], covFinal, final_wts)
 
-        ## Setting the initial values of mu, cov and wts as boundary constraints
-        Flow    = np.array([0.] + muInit.tolist() + [-constraintRelax]*len(X0[self.nState:self.nState*self.nSegments]) + covInit[self.id1].tolist() + [-constraintRelax]*len(X0[self.nState*self.nSegments + self.len_s:(self.nState + self.len_s + self.nInput)*self.nSegments]))
-        Fupp    = np.array([0.] + muInit.tolist() + [constraintRelax]*len(X0[self.nState:self.nState*self.nSegments]) + covInit[self.id1].tolist() + [constraintRelax]*len(X0[self.nState*self.nSegments + self.len_s:(self.nState+self.len_s + self.nInput)*self.nSegments]))
+                if self.do_verbose:
+                    print('*****************\nSet Goal: ', goal)
+                    print('Plan Time Horizon: ', self.time_horizon)
+                    print('Planning for segments: ', self.nSegments)
+                    print('Each Segment Length: ', self.delta)
+                    print("Generated Plan: \n", np.round(mu_new.T, 3))
+                    print("s_new: ", np.round(s_new.T, 3))
+                    print("u_new: ", np.round(u_new.T, 2))
+                    print("final_wts: ", final_wts)
+                    print("Final Cost = ", res.F[0])
+                    print("********************\n")
 
-        ObjRow  = 1
+                return res.F[0], mu_new, s_new, u_new, final_wts
 
-        Start   = 0 # Cold Start
-        cw      = [None]*5000
-        iw      = [None]*5000
-        rw      = [None]*5000
+        print("\nXXXXXXXXXXXXXXX FAILED TO OPTIMIZE! XXXXXXXXXXXXXXX \nReturning Initial Guess\n")
+        # return np.inf, np.tile(muInit, (self.nSegments, 1)).T, np.tile(covInit[self.id1],
+        # (self.nSegments, 1)).T, np.tile([0.]*self.nInput, (self.nSegments, 1)).T, wtsInit*1.
 
-
-        res = snopta(self.snopt_objFun,n,nF,x0=X0, xlow=Xlow,xupp=Xupp, Flow=Flow,Fupp=Fupp, ObjRow=ObjRow, F=F_init, Fstate=Fstate_init, name='ds_goal', start=Start, options=options)
-
-        if res == None:
-            raise ValueError("SNOPT FAILED TO OPTIMIZE!")
-
-        print "SNOPT Result =", np.round(res.x, 4)
-
-        xfinal = res.x
-
-        mu_new = np.reshape(xfinal[:self.nState*self.nSegments],(self.nState,self.nSegments),'F')
-        s_new = np.reshape(xfinal[self.nState*self.nSegments:(self.nState + self.len_s)*self.nSegments], (self.len_s, self.nSegments),'F')
-        u_new = np.reshape(xfinal[(self.nState+self.len_s)*self.nSegments:(self.nState+self.len_s + self.nInput)*self.nSegments],(self.nInput,self.nSegments),'F')
+        mu_new = np.reshape(self.X0[:self.nState * (self.nSegments+1)], (self.nState, (self.nSegments+1)), 'F')
+        s_new = np.reshape(self.X0[self.nState * (self.nSegments+1):(self.nState + self.len_s) * (self.nSegments+1)],
+                           (self.len_s, (self.nSegments+1)), 'F')
+        u_new = np.reshape(self.X0[(self.nState + self.len_s) * (self.nSegments+1):], (self.nInput, self.nSegments), 'F')
 
         final_wts = np.ndarray(self.nModel)
-        covFinal = deepcopy(covInit)
-        covFinal[self.id1] = s_new[:,-1]
-        self.sysDynamics.fastWtsMapped(mu_new[:,-1], covFinal, final_wts)
+        covFinal = copy.copy(covInit)
+        covFinal[self.id1] = s_new[:, -1]
+        self.sysDynamics.fastWtsMapped(mu_new[:, -1], covFinal, final_wts)
 
-        # if self.do_verbose:
-        print '*****************\nSet Goal: ', goal
-        print 'Plan Time Horizon: ', tFinal
-        print 'Planning for segments: ', self.nSegments
-        print 'Each Segment Length: ', self.delta
-        print "Generated Plan: \n", np.round(mu_new.T, 3) #[-1,:]
-        print "s_new: ", np.round(s_new.T, 3)
-        print "u_new: ", np.round(u_new.T, 3)
-        print "final_wts: ", final_wts
-        print "Final Cost = ", res.F[0]
-        print "********************\n"
-
-        return res.F[0], mu_new, s_new, u_new, final_wts
+        return self.objectiveFunction(self.X0), mu_new, s_new, u_new, final_wts

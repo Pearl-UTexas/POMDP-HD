@@ -64,11 +64,19 @@ cdef class BeliefEvolution:
         def __set__(self, int var):
             self.cobj.ds_res_loop_count_ = var 
 
+    property seed:
+        def __get__(self):
+            return self.cobj.seed
+        def __set__(self, unsigned int var):
+            self.cobj.seed = var 
+            self.cobj.manual_seed_ = True
+
     #property goal:
     #    def __get__(self):
     #        return ndarray(self.cobj.goal)
     #    def __set__(self, np.ndarray val):
     #        self.cobj.goal = Map[VectorXd](val)
+
 
     def fastWtsMapped(self, np.ndarray mu, np.ndarray cov, np.ndarray wts_new):
         return self.cobj.fastWtsMapped(Map[VectorXd](mu), Map[MatrixXd] (cov), Map[VectorXd](wts_new))

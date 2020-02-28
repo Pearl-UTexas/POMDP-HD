@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 import sys, time
-import numpy as numpy
+import numpy as np
 import copy
 from multiprocessing import Process, Pipe
 from contextlib import contextmanager
@@ -25,27 +25,31 @@ else:
 # max_cost_differences = []
 
 ''' Parallel Processing '''
-@contextmanager # For Making it to work with Python 2.7
+
+
+@contextmanager  # For Making it to work with Python 2.7
 def terminating(thing):
     try:
         yield thing
     finally:
         thing.terminate()
 
+
 # For making it to work on classes
 def spawn(f):
-    def fun(pipe,x):
+    def fun(pipe, x):
         pipe.send(f(x))
         pipe.close()
+
     return fun
 
-def parmap(f,X):
-    pipe=[Pipe() for x in X]
-    proc=[Process(target=spawn(f),args=(c,x)) for x,(p,c) in izip(X,pipe)]
+
+def parmap(f, X):
+    pipe = [Pipe() for x in X]
+    proc = [Process(target=spawn(f), args=(c, x)) for x, (p, c) in izip(X, pipe)]
     [p.start() for p in proc]
     [p.join() for p in proc]
-    return [p.recv() for (p,c) in pipe]
-
+    return [p.recv() for (p, c) in pipe]
 
 
 ## Data structure to handle hybrid belief
@@ -54,6 +58,7 @@ class hybrid_belief(object):
         self.mu = mu
         self.cov = cov
         self.wts = wts
+
 
 class data_info(object):
     def __init__(self, rollout, cost, plan, final_wts, cs_goal_path):
@@ -70,9 +75,9 @@ def stichCSPath(planned_path):
     # print "shape of planned plan = ", np.shape(planned_path)
 
     for i, plan in enumerate(planned_path[1:]):
-            complete_path[0] = np.append(complete_path[0], plan[0], axis=1)
-            complete_path[1] = np.append(complete_path[1], plan[1], axis=1)
-            complete_path[2] = np.append(complete_path[2], plan[2], axis=1)
+        complete_path[0] = np.append(complete_path[0], plan[0], axis=1)
+        complete_path[1] = np.append(complete_path[1], plan[1], axis=1)
+        complete_path[2] = np.append(complete_path[2], plan[2], axis=1)
 
     return complete_path
 
@@ -83,13 +88,18 @@ class pomdp_hd:
         self.t = 10
 
         ## PARAMETERS
-        self.do_parallelize = True
+        self.do_parallelize = False
         self.do_verbose = False
         self.show_traj = False
-        self.first_pass = True
 
         ## Initalize Dynamics definition  
         self.dyna = BeliefEvolution()
+        # Number fo Samples to calculate discerte belief from continous beleif
+        self.dyna.nSamples = 50
+        # Change the loop count in beleif propagation int value
+        self.dyna.ds_res_loop_count_ = 100
+        # Manual seed or not?
+        self.dyna.seed = 0  # Fixed manual seed for repeatability
 
         self.nState = self.dyna.nState
         self.nInput = self.dyna.nInput
@@ -99,7 +109,7 @@ class pomdp_hd:
 
         # Hybrid Belief
         self.start_mu = np.array([2.0, 0.5])
-        self.start_cov = 0.5*np.eye(self.nState)
+        self.start_cov = 0.5 * np.eye(self.nState)
         wts = np.ndarray(self.nModel)
         self.start_ds = 0
         self.goal_cs = np.array([0., 0.])
@@ -116,41 +126,39 @@ class pomdp_hd:
         self.rollouts = []
         self.set_of_ds_goals = []
 
-
     def setTrajectoryOptimization(self):
         # Cost Matrices
-        Q = 1.0*np.eye(self.nState)
-        R = 0.5*np.eye(self.nInput)
-        Q_f = 125*np.eye(self.nState)
-        labda = 0.1*np.eye((self.nState*(self.nState+1)/2))
+        Q = 1.0 * np.eye(self.nState)
+        R = 0.5 * np.eye(self.nInput)
+        Q_f = 1. * np.eye(self.nState)
+        labda = 1e3 * np.eye((self.nState * (self.nState + 1) / 2))
 
-        opt = trajectoryOptimization(self.nState, self.nSegments, self.nInput, self.nOutput, self.nModel, Q, R, Q_f, labda, self.dyna)
+        opt = trajectoryOptimization(self.nState, self.nInput, self.nOutput, self.nModel, Q, R, Q_f, labda, self.dyna)
 
         return opt
-
 
     def plan_optimal_path(self):
         # print "In Planner, \nstart_mu: ", self.start_mu, "\nstart_cov:", self.start_cov,
         self.find_set_of_ds_to_cs_goals()
-        return self.find_optimal_path()  
+        return self.find_optimal_path()
 
-
-    def find_optimal_path(self):       
+    def find_optimal_path(self):
         all_plans = []
         mu_safe = copy.copy(self.belief.mu)
         cov_safe = copy.copy(self.belief.cov)
         wts_safe = copy.copy(self.belief.wts)
 
-        # First Pass
+        # # First Pass
         self.opt.nSegments = copy.copy(self.nSegments)
-        cost, mu_plan, s_plan, u_plan, final_wts = self.opt.cs_optimize(self.start_mu, self.start_cov, self.belief.wts, self.t,  self.goal_cs)
-        
-        plan_path = [[mu_plan],[s_plan],[u_plan]]
-        
+        cost, mu_plan, s_plan, u_plan, final_wts = self.opt.cs_optimize(self.start_mu, self.start_cov, self.belief.wts,
+                                                                        self.goal_cs)
+
+        plan_path = [[mu_plan], [s_plan], [u_plan]]
+
         if self.do_verbose:
             print "Full Path in first go: \n", self.generateDetailedCSPlan(plan_path)
 
-        cost = 10
+        # cost = 10
         if cost < 1.:
             print "Cost: ", cost
             return self.generateDetailedCSPlan(plan_path)
@@ -163,9 +171,9 @@ class pomdp_hd:
             self.belief.wts = copy.copy(wts_safe)
 
             # convert goal in continuous states to ds goal
-            cov = 1e-6*np.eye(self.nState)
+            cov = 1e-6 * np.eye(self.nState)
             self.dyna.fastWtsMapped(self.goal_cs, cov, self.goal_wts)
-            self.goal_ds = copy.copy(self.wts2ds(self.goal_wts)-1)
+            self.goal_ds = copy.copy(self.wts2ds(self.goal_wts) - 1)
 
             ''' Do rollouts to find a feasible lower cost path  '''
             self.generate_rollouts()
@@ -183,27 +191,27 @@ class pomdp_hd:
 
             min_cost_path = self.optimal_ds_path(all_plans)
 
-            self.belief.mu = copy.copy(min_cost_path.plan[0][:, -1])
-            self.belief.cov[self.opt.id1] = copy.copy(min_cost_path.plan[1][:, -1])
+            # self.belief.mu = copy.copy(min_cost_path.plan[0][:, -1])
+            # self.belief.cov[self.opt.id1] = copy.copy(min_cost_path.plan[1][:, -1])
 
-            self.dyna.fastWtsMapped(self.belief.mu, self.belief.cov, self.belief.wts)
+            # self.dyna.fastWtsMapped(self.belief.mu, self.belief.cov, self.belief.wts)
 
-            print "min_cost_path: \n", min_cost_path.rollout
+            # print "min_cost_path: \n", min_cost_path.rollout
 
-            ### Generate last part to go to goal            
-            cost, mu_plan, s_plan, u_plan, final_wts = copy.copy(self.opt.cs_optimize(self.belief.mu, self.belief.cov, self.belief.wts, self.t, self.goal_cs))
-            mu_plan, s_plan, u_plan = copy.copy(self.generateDetailedCSPlan([[mu_plan],[s_plan],[u_plan]]))
+            # ### Generate last part to go to goal            
+            # cost, mu_plan, s_plan, u_plan, final_wts = copy.copy(self.opt.cs_optimize(self.belief.mu, self.belief.cov, self.belief.wts, self.t, self.goal_cs))
+            # mu_plan, s_plan, u_plan = copy.copy(self.generateDetailedCSPlan([[mu_plan],[s_plan],[u_plan]]))
 
-            # Appending the final plan
-            min_cost_path.plan[0] = np.append(min_cost_path.plan[0], mu_plan, axis=1)
-            min_cost_path.plan[1] = np.append(min_cost_path.plan[1], s_plan, axis=1)
-            min_cost_path.plan[2] = np.append(min_cost_path.plan[2], u_plan, axis=1)
-            plan_path = [min_cost_path.plan[0], min_cost_path.plan[1], min_cost_path.plan[2]]
+            # # Appending the final plan
+            # min_cost_path.plan[0] = np.append(min_cost_path.plan[0], mu_plan, axis=1)
+            # min_cost_path.plan[1] = np.append(min_cost_path.plan[1], s_plan, axis=1)
+            # min_cost_path.plan[2] = np.append(min_cost_path.plan[2], u_plan, axis=1)
+            # plan_path = [min_cost_path.plan[0], min_cost_path.plan[1], min_cost_path.plan[2]]
 
             print "*****************************************"
-            print "min_cost_path: \n", min_cost_path.rollout, "\ncs goals: ", min_cost_path.cs_goal_path# ,"\ncost :", min_cost_path.cost, "\ncs plan, mu: ", min_cost_path.plan[0].T, "\ncs plan, cov: ", min_cost_path.plan[1],  "\ncs plan, u: ", min_cost_path.plan[2]
+            print "min_cost_path: \n", min_cost_path.rollout, "\ncs goals: ", min_cost_path.cs_goal_path, "\ncost :", min_cost_path.cost, "\ncs plan, mu: ", \
+            min_cost_path.plan[0].T, "\ncs plan, cov: ", min_cost_path.plan[1], "\ncs plan, u: ", min_cost_path.plan[2]
             print "*****************************************"
-
 
             # return self.generateDetailedCSPlan(plan_path)
 
@@ -211,7 +219,6 @@ class pomdp_hd:
             #     self.plot_trajectory(min_cost_path)
 
             return min_cost_path.plan[0], min_cost_path.plan[1], min_cost_path.plan[2]
-
 
     def generate_rollouts(self):
         self.rollouts = []
@@ -221,14 +228,14 @@ class pomdp_hd:
 
         self.end_ds = self.wts2ds(self.goal_wts)
         print "end_ds = ", self.end_ds
-        all_possible.remove(self.end_ds) # remove goal state
+        all_possible.remove(self.end_ds)  # remove goal state
 
         # removing start ds
         wts = np.ndarray(self.nModel)
         # self.dyna.fastWtsMapped(copy.copy(self.belief.mu), copy.copy(self.belief.cov), wts)
         self.dyna.fastWtsMapped(copy.copy(self.start_mu), copy.copy(self.start_cov), wts)
         self.start_ds = copy.copy(self.wts2ds(wts))
-        print "start_ds =", self.start_ds 
+        print "start_ds =", self.start_ds
 
         if self.start_ds != self.end_ds:
             all_possible.remove(self.start_ds)
@@ -236,7 +243,7 @@ class pomdp_hd:
             raise ValueError("Start and Goal discrete states are same. Please check guard conditions!")
 
         # Generate all rollouts:
-        for L in range(1, len(all_possible)+1):
+        for L in range(1, len(all_possible) + 1):
             for subset in permutations(all_possible, L):
                 subset = list(subset)
                 subset.insert(0, self.start_ds)
@@ -270,7 +277,6 @@ class pomdp_hd:
         if self.do_verbose:
             print "Initial Belief = ", self.belief.mu, self.belief.cov, self.belief.wts
 
-
         # convert path to continuous states
         cs_goal_path = self.ds_traj_to_cs_traj(ds_goal_path)
         if self.do_verbose:
@@ -290,32 +296,32 @@ class pomdp_hd:
         cost = smooth_cost(self.goal_wts, final_wts, cost_type="KL", scale=1e3)
 
         # Adding cost for executing longer path
-        cost += 0e3*self.t*len(ds_goal_path)
+        cost += 0e3 * self.t * len(ds_goal_path)
 
+        # import pdb; pdb.set_trace()
         rollout_in_ds = [self.start_ds] + self.wtsArray2dsArray(ds_goal_path)
         return data_info(rollout_in_ds, cost, stichCSPath(planned_path), final_wts, cs_goal_path)
-
 
     def optimal_ds_path(self, all_plans):
         global max_cost_differences
         max_cost_differences = []
         cost_diff = []
         print "Here########"
-        
+
         min_cost = 10e6
         min_cost_plan = None
 
         for plan in all_plans:
-            print "For rollout: ", plan.rollout , "Cost = ", plan.cost, "final wts = ", np.round(plan.final_wts,3), "cs_goal_path", plan.cs_goal_path
+            print "For rollout: ", plan.rollout, "Cost = ", plan.cost, "final wts = ", np.round(plan.final_wts,
+                                                                                                3), "cs_goal_path", plan.cs_goal_path
 
             if plan.cost < min_cost:
-                min_cost = plan.cost*1.
+                min_cost = plan.cost * 1.
                 min_cost_plan = copy.copy(plan)
 
         max_cost_differences.append(cost_diff)
         # print "min_cost_plan", min_cost_plan.plan
         return min_cost_plan
-
 
     def ds_goal_to_cs_goal(self, ds_goal):
         # # generate ds_costmap
@@ -331,7 +337,7 @@ class pomdp_hd:
         #     print "result = ", res.x
         #     print "Goal wts : ", ds_goal
         #     print "Wts at final Point : ", np.round(wts ,3)
-        
+
         # # return res.x
         # projected_goal = copy.copy(self.project_on_boundary(self.wts2ds(ds_goal), res.x))
         # print "projected goal: ", projected_goal
@@ -339,10 +345,9 @@ class pomdp_hd:
 
         return self.set_of_ds_goals[self.wts2ds(ds_goal)]
 
-
     def find_set_of_ds_to_cs_goals(self):
         for i in range(self.nModel):
-            ds_goal = [0.]*self.nModel
+            ds_goal = [0.] * self.nModel
             ds_goal[i] = 1.
 
             # generate ds_costmap
@@ -354,15 +359,19 @@ class pomdp_hd:
             # return cs goal
             if self.do_verbose:
                 wts = np.ndarray(self.nModel)
-                self.dyna.fastWtsMapped(res.x, 0.01*np.eye(self.nState), wts)
+                self.dyna.fastWtsMapped(res.x, 0.01 * np.eye(self.nState), wts)
                 print "result = ", res.x
                 print "Goal wts : ", ds_goal
-                print "Wts at final Point : ", np.round(wts ,3)
-        
+                print "Wts at final Point : ", np.round(wts, 3)
+
             projected_goal = copy.copy(self.project_on_boundary(self.wts2ds(ds_goal), res.x))
             self.set_of_ds_goals.append(projected_goal)
+        # self.set_of_ds_goals = [np.array([-4.13673494, -3.12492164]),
+        #                         np.array([-7.85495797, -20.]),
+        #                         np.array([-20.,  -7.15758565]),
+        #                         np.array([-0.26736045,  0.12285187])]
         print self.set_of_ds_goals
-
+        # raw_input('ds_goals')
 
     def ds_traj_to_cs_traj(self, ds_traj):
         cs_traj = []
@@ -372,7 +381,6 @@ class pomdp_hd:
 
         return cs_traj
 
-
     def optimal_cs_path(self, start, cs_goal):
         # do snopt based optimization to find the optimal trajectory
         muInit = start.mu
@@ -380,8 +388,8 @@ class pomdp_hd:
         wtsInit = start.wts
 
         start_time2 = time.time()
-        cost, mu_plan, s_plan, u_plan, final_wts = self.opt.cs_optimize(muInit, covInit, wtsInit, self.t,  cs_goal)
-        
+        # cost, mu_plan, s_plan, u_plan, final_wts = self.opt.cs_optimize(muInit, covInit, wtsInit, self.t,  cs_goal)
+        cost, mu_plan, s_plan, u_plan, final_wts = self.opt.cs_optimize(muInit, covInit, wtsInit, cs_goal)
         print "#############################################"
         print "Total Time in one call of SNOPT = %s seconds" % (time.time() - start_time2)
         global snopt_call
@@ -389,42 +397,38 @@ class pomdp_hd:
         print "SNOPT call number = ", snopt_call
         print "#############################################"
 
-        
-        return mu_plan, s_plan,u_plan, final_wts
-
+        return mu_plan, s_plan, u_plan, final_wts
 
     def complete_optimal_cs_traj(self, cs_traj):
         path = []
 
         for goal in cs_traj:
-            mu_plan, s_plan,u_plan, final_wts = copy.copy(self.optimal_cs_path(self.belief, goal))
-            mu_plan, s_plan, u_plan = copy.copy(self.generateDetailedCSPlan([[mu_plan],[s_plan],[u_plan]]))
-            optimal_path =  [mu_plan, s_plan, u_plan, final_wts]
+            mu_plan, s_plan, u_plan, final_wts = copy.copy(self.optimal_cs_path(self.belief, goal))
+            mu_plan, s_plan, u_plan = copy.copy(self.generateDetailedCSPlan([[mu_plan], [s_plan], [u_plan]]))
+            optimal_path = [mu_plan, s_plan, u_plan, final_wts]
 
             if self.do_verbose:
-                print "Optimal path: \n", optimal_path
+                print "Optimal path: \n", optimal_path[0].T
 
             path.append(optimal_path)
 
             ## Next Iteration
-            self.belief.mu = copy.copy(optimal_path[0][:,-1])
-            self.belief.cov[self.opt.id1] = copy.copy(optimal_path[1][:,-1]) # Conversion of s to cov
+            self.belief.mu = copy.copy(optimal_path[0][:, -1])
+            self.belief.cov[self.opt.id1] = copy.copy(optimal_path[1][:, -1])  # Conversion of s to cov
             # self.belief.cov = 2*np.eye(self.nState) # Conversion of s to cov
             self.belief.wts = copy.copy(final_wts)
             # self.dyna.fastWtsMapped(self.belief.mu, self.belief.cov, self.belief.wts)
 
             # if self.do_verbose:
-                # print "New Start point:\nmu: ", self.belief.mu, "\ncov: ", self.belief.cov, "\nwts: ", self.belief.wts
+            # print "New Start point:\nmu: ", self.belief.mu, "\ncov: ", self.belief.cov, "\nwts: ", self.belief.wts
             # raw_input('Press Enter if should go to next cs_goal')
-
         return path
-
 
     ## Other FUNCTIONS
 
     def project_on_boundary(self, ds_goal, res):
         # Ideally can use another optimization process to find the nearest point, but here we can use direct formulae
-        projection = deepcopy(res)
+        projection = copy.copy(res)
         if ds_goal == 1:
             projection[1] = -20.
         elif ds_goal == 2:
@@ -434,39 +438,39 @@ class pomdp_hd:
 
     def ds_costmap(self, goal_wts):
         # Local Parameters
-        cov = 25.0*np.eye(self.nState)
+        cov = 25.0 * np.eye(self.nState)
         wts = np.ndarray(self.nModel)
 
         # Generate data:
-        pts = np.random.random((self.nState,1000))
+        np.random.seed(0)
+        pts = np.random.random((self.nState, 1000))
 
         # Scaling data based on the domain size
         for i in range(self.nState):
-            pts[i,:] *= (self.domain[i][1] - self.domain[i][0])
-            pts[i,:] += self.domain[i][0]
+            pts[i, :] *= (self.domain[i][1] - self.domain[i][0])
+            pts[i, :] += self.domain[i][0]
 
         costs = []
         for pt in pts.T:
-            self.dyna.fastWtsMapped(pt*1., cov, wts)
-            cost = copy.copy(smooth_cost(goal_wts, wts, cost_type="Hellinger", scale=1e3)) # cost for ds mismatch
+            self.dyna.fastWtsMapped(pt * 1., cov, wts)
+            cost = copy.copy(smooth_cost(goal_wts, wts, cost_type="Hellinger", scale=1e3))  # cost for ds mismatch
             # cost += 5e2*numpy.linalg.norm(self.goal_cs - pt)
-            
-            if (np.linalg.norm(goal_wts - np.array([0., 0., 0., 1.])) > 1.0): 
-                # cost += 50.*numpy.linalg.norm(copy.copy(np.array([-140.0, -20.0])) - pt)
-                cost += 10.*numpy.linalg.norm(copy.copy(self.goal_cs) - pt)
-            else:
-                cost += 500.*numpy.linalg.norm(copy.copy(self.goal_cs) - pt)
 
+            if (np.linalg.norm(goal_wts - np.array([0., 0., 0., 1.])) > 1.0):
+                # cost += 50.*np.linalg.norm(copy.copy(np.array([-140.0, -20.0])) - pt)
+                cost += 10. * np.linalg.norm(copy.copy(self.goal_cs) - pt)
+            else:
+                cost += 500. * np.linalg.norm(copy.copy(self.goal_cs) - pt)
 
             costs.append(cost)
 
         costs = np.array(costs)
 
         # Interpolate
-        x = pts[0,:]
-        y = pts[1,:] # - 6*np.ones(len(pts.T))
+        x = pts[0, :]
+        y = pts[1, :]  # - 6*np.ones(len(pts.T))
         self.rbf = scipy.interpolate.Rbf(x, y, costs, function='multiquadric')
-        return  
+        return
 
     def global_objective(self, X):
         return self.rbf(X[0], X[1])
@@ -474,7 +478,7 @@ class pomdp_hd:
     def ds2Wts(self, ds_state):
         wts = np.zeros(self.nModel)
         # wts[ds_state-1] = 1.
-        wts[ds_state] = 1. 
+        wts[ds_state] = 1.
         return wts
 
     def dsArray2wtsArray(self, dsArray):
@@ -485,8 +489,7 @@ class pomdp_hd:
 
     def wts2ds(self, wts):
         # return int(np.argmax(wts) + 1) 
-        return int(np.argmax(wts)) 
-
+        return int(np.argmax(wts))
 
     def wtsArray2dsArray(self, wtsArray):
         dsArray = []
@@ -494,51 +497,42 @@ class pomdp_hd:
             dsArray.append(self.wts2ds(wts))
         return dsArray
 
-
     def generateDetailedCSPlan(self, input_plan):
-        mu_new = input_plan[0][0]
-        s_new = input_plan[1][0]
-        u_new = input_plan[2][0]
-
+        mu_plan = input_plan[0][0]
+        s_plan = input_plan[1][0]
+        u_plan = input_plan[2][0]
 
         # New matrics
-        mu_plan = np.zeros((self.nState,int((self.nSegments-1)*self.opt.delta)+1))
-        s_plan = np.zeros((self.opt.len_s, int((self.nSegments-1)*self.opt.delta)+1))
-        u_plan = np.zeros((self.nInput,int((self.nSegments-1)*self.opt.delta)+1))
+        mu_complete = np.zeros((self.nState, self.opt.time_horizon))
+        s_complete = np.zeros((self.opt.len_s, self.opt.time_horizon))
+        u_complete = np.zeros((self.nInput, self.opt.time_horizon))
 
-        mu_plan[:,0] = mu_new[:,0]*1
-        s_plan[:,0] = s_new[:, 0]*1
+        mu_complete[:, 0] = mu_plan[:, 0]
+        s_complete[:, 0] = s_plan[:, 0]
 
-        ds_old = 0
-        w_new = np.ndarray(self.nModel)
-        mu_new  = np.ndarray(self.nState)
+        ds = 0
+        wts = np.ndarray(self.nModel)
 
-        mu = copy.copy(mu_plan[:,0])
+        mu = copy.copy(mu_complete[:, 0])
         cov = symarray(np.zeros((self.nState, self.nState)))
-        cov[self.opt.id1] = s_plan[:,0]*1.
+        cov[self.opt.id1] = copy.copy(s_complete[:, 0])
 
-        for i in range(self.nSegments-1):
-            for t in range(1, self.opt.delta+1):
+        for i in range(self.nSegments):
+            for t in range(self.opt.delta):
+                ds = self.opt.sysDynamics.beliefUpdatePlanning(mu, cov, u_plan[:, i], mu, cov, wts, ds)
 
-                ds_new = self.opt.sysDynamics.beliefUpdatePlanning(mu, cov, u_new[:,i], mu_new, cov, w_new, ds_old)
+                # wts_complete[:,i*self.opt.delta+t+1] = w_new*1.
+                mu_complete[:, i * self.opt.delta + t + 1] = copy.copy(mu)
+                s_complete[:, i * self.opt.delta + t + 1] = copy.copy(cov[self.opt.id1])
+                u_complete[:, i * self.opt.delta + t] = copy.copy(u_plan[:, i])
 
-                # wts_plan[:,i*self.opt.delta+t+1] = w_new*1.
-                mu_plan[:,i*self.opt.delta+t] = copy.copy(mu_new)
-                s_plan[:,i*self.opt.delta+t] = copy.copy(cov[self.opt.id1])
-                u_plan[:,i*self.opt.delta+t-1] = copy.copy(u_new[:,i])
-
-                mu = copy.copy(mu_new)
-                
                 if self.do_verbose:
-                    print "\n Planned Step", i*self.opt.delta+t
-                    print "Planned mu = ", np.round(mu_plan[:,i*self.opt.delta+t], 3)
-                    print "Planned s = ", np.round(s_plan[:,i*self.opt.delta+t], 3)
-                    print "Planned Control, u_plan = ", np.round(u_plan[:,i*self.opt.delta+t-1], 2)
+                    print "\n Planned Step", i * self.opt.delta + t
+                    print "Planned mu = ", np.round(mu_complete[:, i * self.opt.delta + t + 1], 3)
+                    print "Planned s = ", np.round(s_complete[:, i * self.opt.delta + t + 1], 3)
+                    print "Planned Control, u_complete = ", np.round(u_complete[:, i * self.opt.delta + t], 3)
 
-        return mu_plan, s_plan, u_plan
-
-
-
+        return mu_complete, s_complete, u_complete
 
     def plot_trajectory(self, plan_traj):
         import matplotlib.pyplot as plt
@@ -583,13 +577,12 @@ class pomdp_hd:
         y2 = 3.0
         plt.plot([x1, x2], [y1, y2], color='b', linestyle='--', linewidth=2)
 
-
         x_vec = [traj[i][0] for i in range(len(traj))]
         y_vec = [traj[i][1] for i in range(len(traj))]
         # x_vec_true = [traj_true[i][0] for i in range(len(traj_true))]
         # y_vec_true = [traj_true[i][1] for i in range(len(traj_true))]
 
-        bl1, = plt.plot(x_vec,y_vec, 'k-o', linewidth = 2.0)
+        bl1, = plt.plot(x_vec, y_vec, 'k-o', linewidth=2.0)
         # bl2, = plt.plot(x_vec_true,y_vec_true, 'b-D',linewidth = 3.0)
 
         plt.title('Trajectories for Discrete state based planning')
@@ -601,7 +594,7 @@ class pomdp_hd:
         # plt.imshow(img1, zorder=0, extent=[0., 10.0, 0.0, 10.0])
         # axes = plt.gca()
         # Start Point
-        plt.plot(x_vec[0], y_vec[0], 'ko', x_vec[-1], y_vec[-1], 'gs' , ms=10.0, mew=2.0)
+        plt.plot(x_vec[0], y_vec[0], 'ko', x_vec[-1], y_vec[-1], 'gs', ms=10.0, mew=2.0)
         # plt.plot(x_vec_true[0], y_vec_true[0], 'ko', x_vec_true[-1], y_vec_true[-1], 'gs' , ms=10.0, mew=2.0)   
         # axes.set_xlim([xmin,xmax])
         # axes.set_ylim([-2.0, 3.0])
@@ -611,13 +604,12 @@ class pomdp_hd:
         return
 
 
-
 if __name__ == "__main__":
     planner = pomdp_kc()
 
     planner.dyna.nSamples = 10
     mu = np.array([2.0, 0.5])
-    cov = 5*np.eye(planner.nState)
+    cov = 5 * np.eye(planner.nState)
     wts = np.ndarray(planner.nModel)
     planner.belief = hybrid_belief(mu, cov, wts)
     goal = np.array([5.0, 0.0])
@@ -639,7 +631,6 @@ if __name__ == "__main__":
 
     global max_cost_differences
     print "cost diffrences", max_cost_differences
-
 
     '''
     #######Timing for nSamples Parameter##########

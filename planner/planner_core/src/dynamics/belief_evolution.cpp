@@ -15,8 +15,8 @@ BeliefEvolution::BeliefEvolution()
     I_.setOnes(nModel); 
     wts = (1./nModel)*I_;
 
-    simulator = new Simulator();
-    simulator->initialize(nState, nInput, nOutput, nModel, mA, mB, mC, mV, mW, set_of_gcs);
+    // simulator = new Simulator();
+    // simulator->initialize(nState, nInput, nOutput, nModel, mA, mB, mC, mV, mW, set_of_gcs);
 
 }
 
@@ -35,25 +35,25 @@ void BeliefEvolution::setMatrices()
         if(i==0)
         {
             B *= 1.0;
-            W *= 100.;
+            W *= 400.;
         }
         else if(i==1) // Constraint parallel to x
         {
             B(1,1) = 0.; // Movement only in x
-            W *= 100.;
-            W(1,1) = 1e-3;
+            W *= 400.;
+            W(1,1) = 1.;
         }
         else if(i==2) // Constraint parallel to y
         {
             B(0,0) = 0.; // Movement only in y
-            W *= 100.;
-            W(0,0) = 1e-3; // Good observation only in x
+            W *= 400.;
+            W(0,0) = 1.; // Good observation only in x
         }
         // Extra goal ds
         else if(i==3)
         {
             B *= 1.; // Movement in all directions
-            W *= 100.;
+            W *= 400.;
         }
 
         mA[i] = A;
@@ -67,7 +67,7 @@ void BeliefEvolution::setMatrices()
 
 void BeliefEvolution::setGC(Eigen::Map<Eigen::VectorXd>& goal)
 {
-   double INF = 200.;
+   double INF = 500.;
    double threshold = 2.0;
 
     // GCs for model 0
@@ -97,7 +97,7 @@ void BeliefEvolution::setGC(Eigen::Map<Eigen::VectorXd>& goal)
     dummy.max_val = INF;
     gcs.conditions.push_back(dummy);
     // State 1
-    dummy.min_val = -25. ;//-INF;//-2.5;
+    dummy.min_val = -INF ;//-INF;//-2.5;
     dummy.max_val = -20.;
     gcs.conditions.push_back(dummy);
     // Add More GCs if needed and then set set_of_gcs to this
@@ -112,10 +112,11 @@ void BeliefEvolution::setGC(Eigen::Map<Eigen::VectorXd>& goal)
     // GCs for model 2
     gcs.conditions.clear();
     // State 0
-    dummy.min_val = -25.; //-INF; //-2.5;//-INF;
+    dummy.min_val = -INF; //-INF; //-2.5;//-INF;
     dummy.max_val = -20.;
     gcs.conditions.push_back(dummy);
     // State 1
+    // dummy.min_val = -20.;
     dummy.min_val = -20.;
     dummy.max_val = INF;
     gcs.conditions.push_back(dummy);
@@ -147,6 +148,10 @@ void BeliefEvolution::setGC(Eigen::Map<Eigen::VectorXd>& goal)
 
     cout << "Set Goal = " << goal << endl;
     cout << "GCs set" << endl;
+
+    simulator = new Simulator();
+    simulator->initialize(nState, nInput, nOutput, nModel, mA, mB, mC, mV, mW, set_of_gcs);
+    cout << "Simulator Initiated" << endl;
 }
 
 void BeliefEvolution::getMatrices(int& idx, Eigen::Map<Eigen::MatrixXd>& A, Eigen::Map<Eigen::MatrixXd>& B, Eigen::Map<Eigen::MatrixXd>& C, Eigen::Map<Eigen::MatrixXd>& V, Eigen::Map<Eigen::MatrixXd>& W)
@@ -164,7 +169,13 @@ void BeliefEvolution::fastWts(Eigen::VectorXd& mu, Eigen::MatrixXd& cov, Eigen::
 {   
     // cout << "Inputs: \nmu: " << mu.transpose() << "\ncov:\n" << cov << endl; 
     int n_pts_= nSamples;
-    Eigen::EigenMultivariateNormal<double> normX_cholesk(mu, cov);
+    bool use_cholesky = false;
+    // if(!manual_seed_){
+        // seed = time(0);
+    // }
+    seed = 0;
+    Eigen::EigenMultivariateNormal<double> normX_cholesk(mu, cov, use_cholesky, seed);
+    // Eigen::EigenMultivariateNormal<double> normX_cholesk(mu, cov);
     wts_new = Eigen::VectorXd::Zero(nModel);
     
     // Generating Points
@@ -589,6 +600,10 @@ void BeliefEvolution::nearestPDMapped(Eigen::Map<Eigen::MatrixXd>& A, Eigen::Map
 /* Functions to interact with Simualtor */
 void BeliefEvolution::simulate_oneStep(Eigen::Map<Eigen::VectorXd>& x, Eigen::Map<Eigen::VectorXd>& u, Eigen::Map<Eigen::VectorXd>& x_new, Eigen::Map<Eigen::VectorXd>& z_new)
 {
+    // if(!manual_seed_){
+    //     simulator->seed = time(0);
+    // }
+    simulator->seed = 0;
     return simulator->simulation(x, u, x_new, z_new);
 }
 
@@ -652,44 +667,47 @@ void Simulator::initialize(int nCS, int nControls, int nObs, int nDS, std::map<i
 
     // Hybrid Dynamics Definition
     utils::reduce_map_size(gcs, set_of_gcs, 1);
+
+    // std::cout << "In Simulator:\n" << "nState: " << nState << "\nnModel:" << nModel << std::endl;
+    // utils::printGCs(set_of_gcs);
 }
 
 
 void Simulator::simulation(Eigen::Map<Eigen::VectorXd>& x, Eigen::Map<Eigen::VectorXd>& u, Eigen::Map<Eigen::VectorXd>& x_new, Eigen::Map<Eigen::VectorXd>& z_new)
 {
-    // Set activeIdx
-    Eigen::VectorXd x1, proc_noise_;
-
     // Set Matrices
     Eigen::MatrixXd A(nState, nState), V(nState, nState), covar;
     Eigen::MatrixXd B(nState, nInput);
     Eigen::VectorXd zero_mean = Eigen::VectorXd::Zero(nState);
 
-    // x_new = A*x + B*u;
-    // cout << "\nIn Simulation: activeIdx = " << activeIdx << "\n";
-    // cout << "Inputs: \n" << "\n x \n" << x << "\n u \n" << u << endl;
 
     // Numerical Integration
-    float res = 0.0001;
+    float res = 0.001;
     for(int i=0; i<int(1/res); i++)
     {
-        x1 = x;
-        utils::activeModel(x1, activeIdx, nState, nModel, set_of_gcs);
+        utils::activeModel(x, activeIdx, nState, nModel, set_of_gcs);
+
+        // HARD-CODING for 2D domain for now
+        if(x[0] < -20. && x[1] < -20.){
+            if(u(0) < 0 && u(1) < 0)
+                continue;
+            if(u(0) > 0)
+                activeIdx = 1;
+            else activeIdx = 2;
+        }        
+
+        // std::cout << "\nx :" << x << std::endl;
+        // std::cout << "Active Idx Before update:" << activeIdx << std::endl;
 
         /* Allowing motion if moving away from the wall*/
-        if(activeIdx == 1 && u(0) > 0) 
+        if(activeIdx == 1 && u(1) > 0){
             activeIdx = 0;
-        else if(activeIdx == 2 && u(1) < 0)
+        }
+        else if(activeIdx == 2 && u(0) > 0){
             activeIdx = 0;
-        else if(activeIdx == 3)
-            {
-                if(u(0)>0 && u(1) < 0)
-                    activeIdx = 0;
-                else if(u(0)>0)
-                    activeIdx = 2;
-                else if(u(1) < 0)
-                    activeIdx = 1;
-            }
+        }
+
+        // std::cout << "Active Idx After update:" << activeIdx << std::endl;
 
         A << mA[activeIdx];
         B << mB[activeIdx];
@@ -697,10 +715,16 @@ void Simulator::simulation(Eigen::Map<Eigen::VectorXd>& x, Eigen::Map<Eigen::Vec
 
         // System Process Noise
         // utils::nearestPD(V, covar); // Now covar is a positive definite matrix
-        // Eigen::EigenMultivariateNormal<double> normX_cholesk(zero_mean, covar);
+        // bool use_cholesky = true;
+        // uint64_t seed=0;
+        // if(seed != 0){
+        //    seed = time(0);
+        // }
+        // Eigen::EigenMultivariateNormal<double> normX_cholesk(zero_mean, covar, use_choleksy, seed);
         // proc_noise_ = normX_cholesk.samples(1);
 
         x = A*x + B*(u*res); // + proc_noise_;
+
     }
     
     x_new = x;
@@ -728,7 +752,9 @@ void Simulator::observation(Eigen::Map<Eigen::VectorXd>& x_new, Eigen::Map<Eigen
 
     // cout << "covar" << covar << "\n";
     
-    Eigen::EigenMultivariateNormal<double> normX_cholesk(mean, covar);
+    bool use_cholesky = false;
+    Eigen::EigenMultivariateNormal<double> normX_cholesk(mean, covar, use_cholesky, seed);
+    // Eigen::EigenMultivariateNormal<double> normX_cholesk(mean, covar);  
     Eigen::VectorXd obs_noise_ = normX_cholesk.samples(1);
     cout << "obs_noise_ " << obs_noise_ << "\n";
 

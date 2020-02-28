@@ -14,23 +14,23 @@ if __name__ == "__main__":
     goal = np.array([0.0, 0.])
 
     planner = planner_interface(x, mu, goal)
-    planner.do_parallelize = True
-    planner.do_verbose = False
+    planner.planner.do_parallelize = True
+    planner.planner.do_verbose = False
 
     ## Tolerance on replanning
     replanning_threshld = 5.0 
     
     ## Exit criterion
-    max_final_error = 1.0 
+    max_final_error = 2.0 
 
-    traj = [planner.mu_actual]
-    traj_true = [planner.x_actual]
-    cov_traj = [planner.cov_actual[planner.planner.opt.id1]]
-    ds_traj = [planner.wts_actual]
+    traj = [copy.copy(planner.mu_actual)]
+    traj_true = [copy.copy(planner.x_actual)]
+    cov_traj = [copy.copy(planner.cov_actual[planner.planner.opt.id1])]
+    ds_traj = [copy.copy(planner.wts_actual)]
 
     while((max(abs(mu - goal)) > max_final_error)):
         mu_plan, s_plan, u_plan = planner.generate_plan()
-        print "mu_plan: ", mu_plan
+        print "mu_plan: ", mu_plan.T
         # raw_input('Press Enter to continue')
 
         for t in range(len(mu_plan.T)-1):

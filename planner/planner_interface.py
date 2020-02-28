@@ -11,16 +11,6 @@ class planner_interface:
         self.planner = pomdp_hd()
         self.controller = blqr(self.planner.nState, self.planner.nInput, self.planner.nOutput, self.planner.opt.Q, self.planner.opt.R, self.planner.opt.labda, self.planner.opt.Q_f)
 
-        # Set Parmeters
-        self.planner.do_parallelize = True
-        self.planner.do_verbose = False
-
-        # Number fo Samples to calculate discerte belief from continous beleif
-        self.planner.dyna.nSamples = 50. 
-        
-        # Change the loop count in beleif propagation int value
-        self.planner.dyna.ds_res_loop_count_ = 100 
-
         # Set Values
         self.id1 = self.planner.opt.id1
         self.x_actual = copy.copy(x)
@@ -65,7 +55,6 @@ class planner_interface:
     def generate_plan(self):
         start_time = time.time()
         mu_plan, s_plan, u_plan = self.planner.plan_optimal_path()
-        self.planner.first_pass = False
 
         tActual = np.round((time.time() - start_time), 3)
         print("Total time required by Planner = %s seconds "  %tActual)
@@ -77,7 +66,7 @@ class planner_interface:
         #LQR Control
         self.planner.dyna.getMatrices(self.idx, self.A, self.B, self.C, self.V, self.W)
 
-        u_local = self.controller.blqr(self.mu_actual, self.s_actual, mu_plan, s_plan, u_plan, self.A, self.B, self.C, self.W, 5)
+        u_local = self.controller.blqr(self.mu_actual, self.s_actual, mu_plan, s_plan, u_plan, self.A, self.B, self.C, self.W, 2)
 
         # Propagation of the Belief continuous Dynamics
         self.idx = self.planner.dyna.predictionStochastic(self.mu_actual, self.cov_actual, u_local, self.muNew, self.covNew, self.wtsNew, self.idx)

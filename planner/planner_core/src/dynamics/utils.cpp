@@ -3,13 +3,13 @@
 /* Utilities */
 void utils::reduce_map_size(std::map<int, Eigen::MatrixXd> &A, std::map<int, Eigen::MatrixXd> &B, int reduce_by)
 {
-    for(unsigned int i=0; i <= A.size() - reduce_by; i++)
+    for(unsigned int i=0; i < A.size() - reduce_by; i++)
         B[i] = A[i];
 }
 
 void utils::reduce_map_size(std::map<int, std::vector<Guards> > &A, std::map<int, std::vector<Guards> > &B, int reduce_by)
 {
-    for(unsigned int i=0; i <= A.size() - reduce_by; i++)
+    for(unsigned int i=0; i < A.size() - reduce_by; i++)
         B[i] = A[i];
 }
 
@@ -33,7 +33,7 @@ void utils::activeModel(const Eigen::VectorXd& x, int& activeIdx, int nState, in
                 if(x(k) > gc.conditions.at(k).min_val && x(k)<gc.conditions.at(k).max_val)  
                 res[k] = true;
 
-                else res[k] = false;
+                // else res[k] = false;
             }
 
             // Check if all values of the array are true
@@ -52,6 +52,21 @@ void utils::activeModel(const Eigen::VectorXd& x, int& activeIdx, int nState, in
    } 
 
    activeIdx = activeIdx_;
+}
+
+
+void utils::printGCs(std::map<int, std::vector<Guards> > &set_of_gcs){
+   for(unsigned int i=0; i< set_of_gcs.size(); i++){
+        std::cout << "\nFor Model: " << i << std::endl;
+        std::vector<Guards> gcs = set_of_gcs[i];
+        for(unsigned int j=0; j<gcs.size(); j++){   
+            std::cout << "Guard#" << j << "\n";
+            Guards gc = gcs.at(j);
+            for(unsigned int k=0; k<gc.conditions.size(); k++)
+                std::cout << "Min: " << gc.conditions.at(k).min_val << 
+                "\tMax:" << gc.conditions.at(k).max_val << std::endl;
+        }
+    }
 }
 
 

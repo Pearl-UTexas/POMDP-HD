@@ -15,7 +15,8 @@ cdef extern from "../include/belief_evolution.h":
         int nModel
         int nSamples
         int ds_res_loop_count_
-
+        unsigned int seed
+        bool manual_seed_
 
         # Map[MatrixXd] W;
         Map[VectorXd] wts;
